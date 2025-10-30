@@ -1,6 +1,6 @@
 ```bash
 
-La structure en question.  buy-sell-platform/
+buy-sell-platform/
 │
 ├── 📄 .dockerignore
 ├── 📄 .env.example
@@ -839,3 +839,4 @@ La structure en question.  buy-sell-platform/
         └── 📂 provisioning/
             ├── 📄 dashboards.yml
             └── 📄 datasources.yml.    Je fais quoi ?
+
