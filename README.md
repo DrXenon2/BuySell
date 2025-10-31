@@ -224,8 +224,16 @@ buy-sell-platform/
 │   │       │   ├── 📄 handle_low_stock.sql
 │   │       │   └── 📄 search_products.sql
 │   │       │
+│   │       ├── 📂 promos/
+│   │       │   ├── 📄 generate_coupon.sql
+│   │       │   └── 📄 validate_coupon.sql
+│   │       │
 │   │       └── 📂 utils/
 │   │           ├── 📄 generate_order_number.sql
+├── │           ├── 📄 backup_database.sql
+├── │           ├── 📄 send_bulk_notifications.sql
+├── │           ├── 📄 calculate_shipping_cost.sql
+├── │           ├── 📄 cleanup_old_data.sql
 │   │           └── 📄 update_updated_at.sql
 │   │
 │   ├── 📂 scripts/
@@ -839,4 +847,5 @@ buy-sell-platform/
         └── 📂 provisioning/
             ├── 📄 dashboards.yml
             └── 📄 datasources.yml.    Je fais quoi ?
+
 
