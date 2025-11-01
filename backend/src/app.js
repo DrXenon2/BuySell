@@ -5,17 +5,13 @@ const morgan = require('morgan');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 
-// Configurations
+// Configuration
 const config = require('./config');
-const corsConfig = require('./config/cors');
-const helmetConfig = require('./config/helmet');
-const rateLimitConfig = require('./config/rateLimit');
 
 // Middlewares
 const errorHandler = require('./middleware/errorHandler');
 const notFoundHandler = require('./middleware/notFoundHandler');
 const loggerMiddleware = require('./middleware/logger');
-const authMiddleware = require('./middleware/auth');
 
 // Routes
 const routes = require('./routes');
@@ -33,28 +29,43 @@ class App {
 
   setupMiddlewares() {
     // Trust proxy for production
-    if (config.NODE_ENV === 'production') {
+    if (config.env === 'production') {
       this.app.set('trust proxy', 1);
     }
 
     // Security middlewares
-    this.app.use(helmet(helmetConfig));
-    this.app.use(cors(corsConfig));
+    this.app.use(helmet());
+    this.app.use(cors(config.cors));
 
     // Rate limiting
-    const limiter = rateLimit(rateLimitConfig);
+    const limiter = rateLimit({
+      windowMs: config.rateLimit.windowMs,
+      max: config.rateLimit.max,
+      message: {
+        error: 'Trop de requêtes, veuillez réessayer plus tard.',
+        message: 'Limite de débit dépassée'
+      },
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
     this.app.use(limiter);
 
     // Compression
     this.app.use(compression());
 
     // Body parsing
-    this.app.use(express.json({ limit: '10mb' }));
-    this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+    this.app.use(express.json({ 
+      limit: config.upload.maxFileSize 
+    }));
+    this.app.use(express.urlencoded({ 
+      extended: true, 
+      limit: config.upload.maxFileSize 
+    }));
 
     // Logging
-    if (config.NODE_ENV !== 'test') {
-      this.app.use(morgan('combined', { 
+    if (config.env !== 'test') {
+      const morganFormat = config.env === 'production' ? 'combined' : 'dev';
+      this.app.use(morgan(morganFormat, { 
         stream: { write: message => logger.info(message.trim()) } 
       }));
     }
@@ -62,7 +73,7 @@ class App {
     this.app.use(loggerMiddleware);
 
     // Static files
-    this.app.use('/uploads', express.static('uploads'));
+    this.app.use('/uploads', express.static(config.upload.uploadDir));
 
     // Health check
     this.app.get('/health', (req, res) => {
@@ -70,17 +81,17 @@ class App {
         status: 'OK',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
-        environment: config.NODE_ENV,
-        version: config.VERSION
+        environment: config.env,
+        version: '1.0.0'
       });
     });
 
     // API info
     this.app.get('/api', (req, res) => {
       res.json({
-        name: 'BuySell Platform API',
-        version: config.VERSION,
-        environment: config.NODE_ENV,
+        name: config.app.name,
+        version: '1.0.0',
+        environment: config.env,
         documentation: '/api/docs',
         status: 'running'
       });
@@ -92,7 +103,7 @@ class App {
     this.app.use('/api', routes);
 
     // Serve API documentation in development
-    if (config.NODE_ENV === 'development') {
+    if (config.env === 'development') {
       this.app.use('/api/docs', express.static('src/docs'));
     }
   }
@@ -106,32 +117,33 @@ class App {
 
     // Unhandled rejection handler
     process.on('unhandledRejection', (reason, promise) => {
-      logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-      // Close server & exit process
-      process.exit(1);
+      logger.error('Rejet non géré:', { promise, reason });
     });
 
     // Uncaught exception handler
     process.on('uncaughtException', (error) => {
-      logger.error('Uncaught Exception thrown:', error);
+      logger.error('Exception non capturée:', error);
       process.exit(1);
     });
   }
 
   start() {
-    const PORT = config.PORT || 5000;
+    const PORT = config.port;
+    const HOST = config.env === 'production' ? config.app.backendUrl : 'localhost';
     
     return new Promise((resolve, reject) => {
       const server = this.app.listen(PORT, () => {
-        logger.info(`🚀 Server running in ${config.NODE_ENV} mode on port ${PORT}`);
-        logger.info(`📚 API Documentation: http://localhost:${PORT}/api/docs`);
-        logger.info(`❤️  Health check: http://localhost:${PORT}/health`);
+        logger.info(`🚀 Serveur ${config.app.name} démarré`);
+        logger.info(`📍 Environnement: ${config.env}`);
+        logger.info(`🌐 URL: http://${HOST}:${PORT}`);
+        logger.info(`📚 API: http://${HOST}:${PORT}/api`);
+        logger.info(`❤️  Health: http://${HOST}:${PORT}/health`);
         
         resolve(server);
       });
 
       server.on('error', (error) => {
-        logger.error('Failed to start server:', error);
+        logger.error('Échec du démarrage du serveur:', error);
         reject(error);
       });
     });
