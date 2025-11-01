@@ -6,7 +6,6 @@ const App = require('./app');
 const config = require('./config');
 const logger = require('./utils/logger');
 const supabase = require('./config/supabase');
-const database = require('./config/database');
 
 class Server {
   constructor() {
@@ -15,47 +14,25 @@ class Server {
 
   async initialize() {
     try {
-      logger.info('🚀 Initializing BuySell Platform Server...');
+      logger.info(`🚀 Initialisation de ${config.app.name}...`);
 
-      // Validate required environment variables
-      this.validateEnvironment();
-
-      // Initialize database connection
+      // Initialiser la base de données
       await this.initializeDatabase();
 
-      // Initialize Supabase
+      // Initialiser Supabase
       await this.initializeSupabase();
 
-      logger.info('✅ All services initialized successfully');
+      logger.info('✅ Tous les services initialisés avec succès');
 
     } catch (error) {
-      logger.error('❌ Failed to initialize server:', error);
+      logger.error('❌ Échec de l\'initialisation du serveur:', error);
       process.exit(1);
     }
   }
 
-  validateEnvironment() {
-    const requiredEnvVars = [
-      'NODE_ENV',
-      'PORT',
-      'SUPABASE_URL',
-      'SUPABASE_ANON_KEY',
-      'JWT_SECRET',
-      'CLIENT_URL'
-    ];
-
-    const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-
-    if (missingVars.length > 0) {
-      throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
-    }
-
-    logger.info('✅ Environment variables validated');
-  }
-
   async initializeDatabase() {
     try {
-      // Test database connection
+      // Tester la connexion à la base de données
       const { data, error } = await supabase
         .from('profiles')
         .select('count')
@@ -65,16 +42,16 @@ class Server {
         throw error;
       }
 
-      logger.info('✅ Database connection established');
+      logger.info('✅ Connexion à la base de données établie');
     } catch (error) {
-      logger.error('❌ Database connection failed:', error);
+      logger.error('❌ Échec de la connexion à la base de données:', error);
       throw error;
     }
   }
 
   async initializeSupabase() {
     try {
-      // Test Supabase connection with a simple query
+      // Tester la connexion Supabase avec une requête simple
       const { data, error } = await supabase
         .from('profiles')
         .select('count')
@@ -84,9 +61,9 @@ class Server {
         throw error;
       }
 
-      logger.info('✅ Supabase connection established');
+      logger.info('✅ Connexion Supabase établie');
     } catch (error) {
-      logger.error('❌ Supabase connection failed:', error);
+      logger.error('❌ Échec de la connexion Supabase:', error);
       throw error;
     }
   }
@@ -95,20 +72,20 @@ class Server {
     const numCPUs = os.cpus().length;
 
     if (cluster.isPrimary) {
-      logger.info(`🎯 Master ${process.pid} is running`);
-      logger.info(`🔧 Starting ${numCPUs} workers`);
+      logger.info(`🎯 Processus principal ${process.pid} démarré`);
+      logger.info(`🔧 Démarrage de ${numCPUs} workers`);
 
-      // Fork workers
+      // Créer les workers
       for (let i = 0; i < Math.min(numCPUs, 4); i++) {
         cluster.fork();
       }
 
       cluster.on('exit', (worker, code, signal) => {
-        logger.warn(`⚠️ Worker ${worker.process.pid} died. Forking new worker...`);
+        logger.warn(`⚠️ Worker ${worker.process.pid} arrêté. Redémarrage...`);
         cluster.fork();
       });
 
-      // Graceful shutdown
+      // Arrêt gracieux
       this.setupGracefulShutdown();
 
     } else {
@@ -121,9 +98,9 @@ class Server {
       await this.initialize();
       await this.app.start();
       
-      logger.info(`👷 Worker ${process.pid} started`);
+      logger.info(`👷 Worker ${process.pid} démarré`);
     } catch (error) {
-      logger.error(`❌ Worker ${process.pid} failed to start:`, error);
+      logger.error(`❌ Échec du démarrage du worker ${process.pid}:`, error);
       process.exit(1);
     }
   }
@@ -133,38 +110,38 @@ class Server {
       await this.initialize();
       await this.app.start();
     } catch (error) {
-      logger.error('❌ Failed to start server:', error);
+      logger.error('❌ Échec du démarrage du serveur:', error);
       process.exit(1);
     }
   }
 
   setupGracefulShutdown() {
     const gracefulShutdown = (signal) => {
-      logger.info(`\n📞 ${signal} received. Starting graceful shutdown...`);
+      logger.info(`\n📞 ${signal} reçu. Début de l'arrêt gracieux...`);
 
       setTimeout(() => {
-        logger.warn('⚠️ Forcing shutdown after 30 seconds');
+        logger.warn('⚠️ Arrêt forcé après 30 secondes');
         process.exit(1);
       }, 30000).unref();
 
-      // Close all workers
+      // Arrêter tous les workers
       for (const id in cluster.workers) {
         cluster.workers[id].process.kill();
       }
 
-      logger.info('✅ Graceful shutdown completed');
+      logger.info('✅ Arrêt gracieux terminé');
       process.exit(0);
     };
 
-    // Handle different shutdown signals
+    // Gérer les différents signaux d'arrêt
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-    process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // For nodemon
+    process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // Pour nodemon
   }
 
-  // Start server based on environment
+  // Démarrer le serveur selon l'environnement
   async start() {
-    if (config.NODE_ENV === 'production' && config.USE_CLUSTER === 'true') {
+    if (config.env === 'production' && process.env.USE_CLUSTER === 'true') {
       this.startCluster();
     } else {
       await this.startSingle();
@@ -172,23 +149,26 @@ class Server {
   }
 }
 
-// Create and start server
+// Créer et démarrer le serveur
 const server = new Server();
 
-// Handle uncaught exceptions
+// Gérer les exceptions non capturées
 process.on('uncaughtException', (error) => {
-  logger.error('💥 Uncaught Exception:', error);
+  logger.error('💥 Exception non capturée:', error);
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error('💥 Rejet non géré:', { promise, reason });
   process.exit(1);
 });
 
-// Start the server
+// Démarrer le serveur
 if (require.main === module) {
-  server.start();
+  server.start().catch(error => {
+    logger.error('💥 Erreur critique lors du démarrage:', error);
+    process.exit(1);
+  });
 }
 
 module.exports = server;
