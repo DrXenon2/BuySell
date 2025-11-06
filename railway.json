@@ -1,0 +1,105 @@
+{
+  "build": {
+    "builder": "nixpacks",
+    "buildCommand": "cd frontend && npm run build",
+    "outputDirectory": "frontend/.next"
+  },
+  "deploy": {
+    "startCommand": "cd frontend && npm start",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  },
+  "scripts": {
+    "postdeploy": "cd backend && npx prisma db push"
+  },
+  "services": [
+    {
+      "name": "backend",
+      "source": "./backend",
+      "build": {
+        "builder": "nixpacks",
+        "buildCommand": "npm install"
+      },
+      "deploy": {
+        "startCommand": "npm start",
+        "healthCheckPath": "/health",
+        "healthCheckTimeout": 300
+      },
+      "env": {
+        "NODE_ENV": "production",
+        "PORT": "3001"
+      },
+      "resources": [
+        {
+          "type": "database",
+          "name": "postgres",
+          "env": {
+            "DATABASE_URL": "DATABASE_URL"
+          }
+        },
+        {
+          "type": "cache",
+          "name": "redis",
+          "env": {
+            "REDIS_URL": "REDIS_URL"
+          }
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "NODE_ENV": "production",
+    "NEXT_PUBLIC_API_URL": "https://your-backend-production.up.railway.app",
+    "JWT_SECRET": {
+      "generator": "secret"
+    },
+    "STRIPE_SECRET_KEY": {
+      "description": "Stripe secret key for payments"
+    },
+    "RESEND_API_KEY": {
+      "description": "Resend API key for emails"
+    },
+    "CLOUDINARY_URL": {
+      "description": "Cloudinary URL for image uploads"
+    }
+  },
+  "plugins": [
+    {
+      "name": "postgresql",
+      "source": "railway",
+      "config": {
+        "version": "15"
+      }
+    },
+    {
+      "name": "redis",
+      "source": "railway"
+    }
+  ],
+  "healthChecks": [
+    {
+      "name": "backend-health",
+      "path": "/health",
+      "timeout": 30,
+      "interval": 60
+    },
+    {
+      "name": "frontend-health",
+      "path": "/",
+      "timeout": 30,
+      "interval": 60
+    }
+  ],
+  "crons": [
+    {
+      "name": "database-backup",
+      "schedule": "0 2 * * *",
+      "command": "cd backend && npm run db:backup"
+    },
+    {
+      "name": "cleanup-temp-files",
+      "schedule": "0 4 * * *",
+      "command": "cd backend && npm run cleanup:files"
+    }
+  ]
+}

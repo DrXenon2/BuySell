@@ -1,0 +1,90 @@
+app = "buy-sell-platform"
+primary_region = "ams"
+
+[build]
+  builder = "heroku/buildpacks:20"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [[services.http_checks]]
+    interval = 10000
+    timeout = 2000
+    grace_period = "5s"
+    method = "get"
+    path = "/health"
+    protocol = "http"
+
+    [services.http_checks.headers]
+      Content-Type = "application/json"
+
+[deploy]
+  strategy = "rolling"
+
+[mounts]
+  source = "upload_volume"
+  destination = "/app/uploads"
+
+[statics]
+  guest_path = "/app/frontend/.next/static"
+  url_prefix = "/_next/static"
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 8080
+    path = "/health"
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "5s"
+
+  [checks.frontend]
+    type = "http"
+    port = 8080
+    path = "/"
+    interval = "30s"
+    timeout = "5s"
+
+[processes]
+  app = "npm start"
+
+[experimental]
+  auto_rollback = true
+
+# Environment variables
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  NEXT_PUBLIC_API_URL = "https://buy-sell-platform.fly.dev"
+
+# Secrets (set via fly secrets set)
+# fly secrets set JWT_SECRET=your-secret-key
+# fly secrets set DATABASE_URL=your-database-url
+# fly secrets set STRIPE_SECRET_KEY=your-stripe-key
+
+# Volume for file uploads
+[[mounts]]
+  source = "upload_data"
+  destination = "/data/uploads"
+
+# VM configuration
+[vm]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024

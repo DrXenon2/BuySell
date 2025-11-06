@@ -1,0 +1,131 @@
+services:
+  # Backend API Service
+  - type: web
+    name: buy-sell-backend
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: cd backend && npm install && npm run build
+    startCommand: cd backend && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DB_HOST
+        fromDatabase:
+          name: buy-sell-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: buy-sell-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: buy-sell-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: buy-sell-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: buy-sell-db
+          property: password
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REDIS_URL
+        fromService:
+          name: buy-sell-redis
+          type: pserv
+          property: connectionString
+    autoDeploy: true
+
+  # Frontend Service
+  - type: web
+    name: buy-sell-frontend
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        value: https://buy-sell-backend.onrender.com
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://buy-sell-backend.onrender.com/api/*
+    autoDeploy: true
+
+  # PostgreSQL Database
+  - type: pserv
+    name: buy-sell-db
+    region: frankfurt
+    plan: free
+    diskSizeGB: 10
+    ipAllowList: []
+    postgresMajorVersion: 15
+    databases:
+      - name: buy_sell_platform
+    initialDatabase: buy_sell_platform
+
+  # Redis Service
+  - type: pserv
+    name: buy-sell-redis
+    region: frankfurt
+    plan: free
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+
+  # Background Worker (Optional)
+  - type: worker
+    name: buy-sell-worker
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm run worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_HOST
+        fromDatabase:
+          name: buy-sell-db
+          property: host
+      - key: DB_NAME
+        fromDatabase:
+          name: buy-sell-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: buy-sell-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: buy-sell-db
+          property: password
+    autoDeploy: true
+
+# Cron Jobs
+jobs:
+  # Database backup
+  - type: cron
+    name: database-backup
+    schedule: "0 2 * * *"
+    command: cd backend && npm run db:backup
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+  # Cleanup expired sessions
+  - type: cron
+    name: session-cleanup
+    schedule: "0 3 * * *"
+    command: cd backend && npm run cleanup:sessions
+    envVars:
+      - key: NODE_ENV
+        value: production

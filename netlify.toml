@@ -1,0 +1,83 @@
+[build]
+  command = "cd frontend && npm run build"
+  publish = "frontend/.next"
+
+[build.environment]
+  NODE_ENV = "production"
+  NEXT_PUBLIC_API_URL = "https://your-backend-domain.herokuapp.com"
+
+[context.production.environment]
+  NEXT_PUBLIC_API_URL = "https://your-production-api.com"
+
+[context.deploy-preview.environment]
+  NEXT_PUBLIC_API_URL = "https://your-staging-api.com"
+
+[context.branch-deploy.environment]
+  NEXT_PUBLIC_API_URL = "https://your-staging-api.com"
+
+# Redirects for client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# API proxy
+[[redirects]]
+  from = "/api/*"
+  to = "https://your-backend-domain.herokuapp.com/api/:splat"
+  status = 200
+  force = true
+
+# Security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+# Cache static assets
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Sitemap and robots
+[[redirects]]
+  from = "/sitemap.xml"
+  to = "/sitemap.xml"
+  status = 200
+
+[[redirects]]
+  from = "/robots.txt"
+  to = "/robots.txt"
+  status = 200
+
+# Environment variables for build
+[build.environment]
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# Edge functions (if needed)
+[[edge_functions]]
+  path = "/api/*"
+  function = "api"
+
+# Image optimization
+[functions]
+  node_bundler = "esbuild"
+
+# Plugin configuration (if using Netlify plugins)
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
