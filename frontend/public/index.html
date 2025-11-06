@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <meta name="description" content="BuySell Platform - Marketplace moderne pour acheter et vendre des produits en toute sécurité" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://buysell.com/" />
+    <meta property="og:title" content="BuySell Platform - Marketplace Moderne" />
+    <meta property="og:description" content="Plateforme de marketplace moderne avec système de vente entre particuliers et professionnels" />
+    <meta property="og:image" content="%PUBLIC_URL%/images/og-image.jpg" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://buysell.com/" />
+    <meta property="twitter:title" content="BuySell Platform - Marketplace Moderne" />
+    <meta property="twitter:description" content="Plateforme de marketplace moderne avec système de vente entre particuliers et professionnels" />
+    <meta property="twitter:image" content="%PUBLIC_URL%/images/twitter-image.jpg" />
+
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/apple-touch-icon.png" />
+    
+    <!-- Manifest -->
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
+    <!-- Preload critical resources -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" as="style" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    
+    <!-- DNS prefetch for external domains -->
+    <link rel="dns-prefetch" href="//fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="//fonts.gstatic.com" />
+    
+    <title>BuySell Platform - Marketplace Moderne</title>
+
+    <!-- Critical CSS (inline for above-the-fold content) -->
+    <style>
+      /* Critical CSS for initial load */
+      .loading-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        color: white;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      
+      .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: white;
+        animation: spin 1s ease-in-out infinite;
+      }
+      
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>
+      <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
+        <h1>JavaScript Requis</h1>
+        <p>Vous devez activer JavaScript pour utiliser cette application.</p>
+        <p>Please enable JavaScript to run this app.</p>
+      </div>
+    </noscript>
+    
+    <!-- Loading screen (removed by React) -->
+    <div id="loading-screen" class="loading-screen">
+      <div style="text-align: center;">
+        <div class="loading-spinner"></div>
+        <p style="margin-top: 16px; font-size: 18px; font-weight: 500;">BuySell Platform</p>
+        <p style="margin-top: 8px; opacity: 0.8;">Chargement...</p>
+      </div>
+    </div>
+    
+    <!-- React root -->
+    <div id="root"></div>
+
+    <!-- Remove loading screen once app loads -->
+    <script>
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          const loadingScreen = document.getElementById('loading-screen');
+          if (loadingScreen) {
+            loadingScreen.style.opacity = '0';
+            loadingScreen.style.transition = 'opacity 0.3s ease';
+            setTimeout(function() {
+              loadingScreen.remove();
+            }, 300);
+          }
+        }, 1000);
+      });
+    </script>
+
+    <!-- Analytics (optional) -->
+    <% if (process.env.REACT_APP_GA_ID) { %>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=<%= process.env.REACT_APP_GA_ID %>"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '<%= process.env.REACT_APP_GA_ID %>');
+    </script>
+    <% } %>
+  </body>
+</html>

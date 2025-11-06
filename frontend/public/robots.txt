@@ -1,0 +1,73 @@
+# Robots.txt pour Buy-Sell Platform
+# Généré le: 2024-01-15
+
+User-agent: *
+Allow: /
+
+# Pages à exclure de l'indexation
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /api/
+Disallow: /_next/
+Disallow: /static/
+Disallow: /checkout/
+Disallow: /cart/
+Disallow: /profile/
+Disallow: /orders/
+Disallow: /wishlist/
+Disallow: /settings/
+
+# Paramètres d'URL à ignorer
+Disallow: /*?sort=
+Disallow: /*?filter=
+Disallow: /*?page=
+Disallow: /*?search=
+
+# Fichiers à exclure
+Disallow: /*.json$
+Disallow: /*.js$
+Disallow: /*.css$
+
+# User-agent spécifiques
+User-agent: Googlebot
+Allow: /
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /api/
+Disallow: /checkout/
+Disallow: /cart/
+Crawl-delay: 1
+
+User-agent: Bingbot
+Allow: /
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /api/
+Disallow: /checkout/
+Disallow: /cart/
+Crawl-delay: 1
+
+User-agent: Yandex
+Allow: /
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /api/
+Crawl-delay: 2
+
+User-agent: Baiduspider
+Allow: /
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /api/
+Crawl-delay: 3
+
+# Sitemaps
+Sitemap: https://monsite.sn/sitemap.xml
+Sitemap: https://monsite.sn/sitemap-products.xml
+Sitemap: https://monsite.sn/sitemap-categories.xml
+Sitemap: https://monsite.sn/sitemap-static.xml
+
+# Paramètres supplémentaires
+Host: https://monsite.sn
+Clean-param: ref /products/
+Clean-param: source /products/
