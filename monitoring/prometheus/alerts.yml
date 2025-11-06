@@ -1,0 +1,104 @@
+groups:
+  - name: system_alerts
+    rules:
+      # Alerte utilisation CPU
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 80% for more than 5 minutes on instance {{ $labels.instance }}"
+
+      # Alerte mémoire
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 85% for more than 5 minutes on instance {{ $labels.instance }}"
+
+      # Alerte disque
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is above 90% for more than 5 minutes on mount point {{ $labels.mountpoint }}"
+
+      # Alerte container down
+      - alert: ContainerDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container down (instance {{ $labels.instance }})"
+          description: "A container has been down for more than 1 minute."
+
+  - name: application_alerts
+    rules:
+      # Alerte taux d'erreur API
+      - alert: HighAPIErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High API error rate"
+          description: "API error rate is above 5% for more than 2 minutes"
+
+      # Alerte latence API
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High API latency detected"
+          description: "95th percentile API latency is above 2 seconds for more than 5 minutes"
+
+      # Alerte base de données
+      - alert: DatabaseDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "Database is down"
+          description: "Database connection has been down for more than 1 minute"
+
+  - name: business_alerts
+    rules:
+      # Alerte transactions échouées
+      - alert: HighFailedTransactions
+        expr: rate(transactions_failed_total[10m]) / rate(transactions_total[10m]) * 100 > 10
+        for: 5m
+        labels:
+          severity: critical
+          service: payments
+        annotations:
+          summary: "High failed transaction rate"
+          description: "Failed transaction rate is above 10% for more than 5 minutes"
+
+      # Alerte stock faible
+      - alert: LowStockAlert
+        expr: product_stock_current < 10
+        for: 2m
+        labels:
+          severity: warning
+          service: inventory
+        annotations:
+          summary: "Low stock alert for product {{ $labels.product_id }}"
+          description: "Product {{ $labels.product_name }} has low stock ({{ $value }} items remaining)"
