@@ -1,0 +1,168 @@
+name: Tests
+
+on:
+  push:
+    branches: [ "main", "develop", "feature/*" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+
+    - name: Install dependencies
+      run: cd backend && npm ci
+
+    - name: Create test environment file
+      run: |
+        cd backend
+        cat > .env.test << EOF
+        NODE_ENV=test
+        DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_db
+        JWT_SECRET=test-jwt-secret-key-for-testing-only
+        JWT_EXPIRES_IN=1h
+        STRIPE_SECRET_KEY=sk_test_placeholder
+        RESEND_API_KEY=re_placeholder
+        SUPABASE_URL=https://placeholder.supabase.co
+        SUPABASE_ANON_KEY=placeholder
+        AWS_ACCESS_KEY_ID=test
+        AWS_SECRET_ACCESS_KEY=test
+        AWS_REGION=us-east-1
+        CLOUDINARY_CLOUD_NAME=test
+        CLOUDINARY_API_KEY=test
+        CLOUDINARY_API_SECRET=test
+        REDIS_URL=redis://localhost:6379
+        EOF
+
+    - name: Run database migrations
+      run: |
+        cd backend
+        npx sequelize-cli db:create --env test
+        npx sequelize-cli db:migrate --env test
+        npx sequelize-cli db:seed:all --env test
+
+    - name: Run unit tests
+      run: cd backend && npm run test:unit
+
+    - name: Run integration tests
+      run: cd backend && npm run test:integration
+
+    - name: Run e2e tests
+      run: cd backend && npm run test:e2e
+
+    - name: Upload test coverage
+      uses: codecov/codecov-action@v3
+      with:
+        directory: backend/coverage
+        flags: backend
+        name: backend-coverage
+
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install dependencies
+      run: cd frontend && npm ci
+
+    - name: Run unit tests
+      run: cd frontend && npm run test:unit
+
+    - name: Run integration tests
+      run: cd frontend && npm run test:integration
+
+    - name: Run e2e tests
+      run: cd frontend && npm run test:e2e
+
+    - name: Build application
+      run: cd frontend && npm run build
+
+    - name: Upload test coverage
+      uses: codecov/codecov-action@v3
+      with:
+        directory: frontend/coverage
+        flags: frontend
+        name: frontend-coverage
+
+  lighthouse:
+    name: Lighthouse CI
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install Lighthouse CI
+      run: npm install -g @lhci/cli@0.12.x
+
+    - name: Run Lighthouse CI
+      run: |
+        lhci autorun --upload.target=temporary-public-storage
+      env:
+        LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install artillery
+      run: npm install -g artillery
+
+    - name: Run performance tests
+      run: |
+        cd backend/tests/performance
+        artillery run load-test.yml
+
+    - name: Upload performance report
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-report
+        path: backend/tests/performance/reports/

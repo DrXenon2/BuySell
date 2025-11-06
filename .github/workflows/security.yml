@@ -1,0 +1,133 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 0 * * 0' # Weekly
+
+jobs:
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: javascript, typescript
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        component: [backend, frontend]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: ${{ matrix.component }}
+
+    - name: Install dependencies
+      run: |
+        cd ${{ matrix.component }}
+        npm ci
+
+    - name: Run npm audit
+      run: |
+        cd ${{ matrix.component }}
+        npm audit --audit-level high
+
+    - name: Run Snyk test
+      uses: snyk/actions/node@v2
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --severity-threshold=high
+        path: ${{ matrix.component }}
+
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build Docker images
+      run: |
+        docker build -t backend:scan ./backend
+        docker build -t frontend:scan ./frontend
+
+    - name: Scan backend image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'backend:scan'
+        format: 'sarif'
+        output: 'trivy-results-backend.sarif'
+
+    - name: Scan frontend image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'frontend:scan'
+        format: 'sarif'
+        output: 'trivy-results-frontend.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results-backend.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results-frontend.sarif'
+
+  secrets-scan:
+    name: Secrets Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Scan for secrets
+      uses: gitleaks/gitleaks-action@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  sast:
+    name: SAST Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Semgrep SAST
+      uses: returntocorp/semgrep-action@v1
+      with:
+        config: p/ci
+
+    - name: Upload SAST results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: semgrep.sarif
