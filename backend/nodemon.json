@@ -1,0 +1,20 @@
+{
+  "watch": [
+    "src",
+    ".env"
+  ],
+  "ext": "js,json",
+  "ignore": [
+    "src/tests/",
+    "coverage/",
+    "logs/",
+    "uploads/"
+  ],
+  "exec": "node src/index.js",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "events": {
+    "restart": "echo '🔄 Server restarted due to file changes'"
+  }
+}
