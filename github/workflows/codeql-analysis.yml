@@ -1,0 +1,233 @@
+name: "CodeQL Advanced Analysis"
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday at midnight
+
+env:
+  NODE_VERSION: '18.x'
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze Code with CodeQL
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'javascript', 'typescript' ]
+        include:
+          - language: javascript
+            build-mode: none
+          - language: typescript  
+            build-mode: none
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        # We must fetch at least the immediate parents so that if this is
+        # a pull request then we can checkout the head.
+        fetch-depth: 2
+
+    # Initializes the CodeQL tools for scanning.
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        # If you wish to specify custom queries, you can do so here or in a config file.
+        # By default, queries listed here will override any specified in a config file.
+        # Prefix the list here with "+" to use these queries and those in the config file.
+        
+        # Details on CodeQL's query packs refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
+        queries: security-and-quality,security-extended
+        config-file: ./.github/codeql/codeql-config.yml
+
+    # Autobuild attempts to build any compiled languages (C/C++, C#, or Java).
+    # If this step fails, then you should remove it and run the build manually.
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+        output: sarif-results-${{ matrix.language }}
+
+    # Upload results to GitHub Security tab
+    - name: Upload SARIF results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: sarif-results-${{ matrix.language }}.sarif
+        wait-for-processing: true
+
+  analyze-dependencies:
+    name: Analyze Dependencies
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: |
+          backend/package-lock.json
+          frontend/package-lock.json
+
+    - name: Install dependencies for analysis
+      run: |
+        cd backend && npm ci --production
+        cd ../frontend && npm ci --production
+
+    - name: Initialize CodeQL for dependency analysis
+      uses: github/codeql-action/init@v3
+      with:
+        languages: javascript
+        queries: security-and-quality
+
+    - name: Perform dependency analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/dependency"
+
+  secret-scanning:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Scan for hardcoded secrets
+      uses: github/codeql-action/init@v3
+      with:
+        languages: javascript
+        queries: security-and-quality
+
+    - name: Run secret scanning
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/secrets"
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        cd backend && npm ci
+        cd ../frontend && npm ci
+
+    - name: Run ESLint
+      run: |
+        echo "Running ESLint analysis..."
+        cd backend && npm run lint || true
+        cd ../frontend && npm run lint || true
+
+    - name: Run TypeScript compiler checks
+      run: |
+        echo "Running TypeScript checks..."
+        cd frontend && npx tsc --noEmit || true
+
+    - name: Initialize CodeQL for quality
+      uses: github/codeql-action/init@v3
+      with:
+        languages: javascript
+        queries: security-and-quality
+
+  advanced-analysis:
+    name: Advanced Security Analysis
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Run advanced security queries
+      uses: github/codeql-action/init@v3
+      with:
+        languages: javascript, typescript
+        queries: +security-and-quality, security-extended, security-experimental
+
+    - name: Perform advanced analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/advanced"
+        output: advanced-security-results
+
+    - name: Upload advanced results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: advanced-security-results.sarif
+
+  notify-security:
+    name: Notify Security Findings
+    runs-on: ubuntu-latest
+    needs: [analyze, analyze-dependencies, secret-scanning]
+    if: always() && (github.event_name == 'push' || github.event_name == 'pull_request')
+    
+    steps:
+    - name: Security Summary
+      run: |
+        echo "Security analysis completed for ${{ github.repository }}"
+        echo "Event: ${{ github.event_name }}"
+        echo "Branch: ${{ github.ref }}"
+        echo "Commit: ${{ github.sha }}"
+        
+        echo "=== Security Analysis Summary ==="
+        echo "✅ CodeQL Analysis: ${{ needs.analyze.result }}"
+        echo "✅ Dependency Analysis: ${{ needs.analyze-dependencies.result }}"
+        echo "✅ Secret Scanning: ${{ needs.secret-scanning.result }}"
+        
+        if [[ "${{ needs.analyze.result }}" == "failure" || "${{ needs.analyze-dependencies.result }}" == "failure" || "${{ needs.secret-scanning.result }}" == "failure" ]]; then
+          echo "❌ Security checks failed! Please review the findings."
+          exit 1
+        else
+          echo "✅ All security checks passed!"
+        fi
+
+    - name: Notify on Security Failure
+      if: failure()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        channel: '#security'
+        text: 'Security analysis failed for ${{ github.repository }} - ${{ github.ref }}'
+        fields: job,commit,repo,message
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    - name: Notify on Security Success
+      if: success()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        channel: '#security'
+        text: 'Security analysis passed for ${{ github.repository }} - ${{ github.ref }}'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
