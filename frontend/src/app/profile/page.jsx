@@ -419,3 +419,18 @@ export default function ProfilePage() {
                         fontWeight: 'bold',
                         cursor: loading ? 'not-allowed' : 'pointer'
                       }}
+                    >
+                      {loading ? 'Mise à jour...' : 'Enregistrer les modifications'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Autres onglets... */}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
