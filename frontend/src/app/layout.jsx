@@ -4,12 +4,13 @@ import { CartProvider } from '@/contexts/CartContext'
 import { NotificationProvider } from '@/contexts/NotificationContext'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
+import Notification from '@/components/ui/Notification'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'Buysell - Achetez. Vendez. Revendez. Simplifiez.',
-  description: 'Marketplace complète neuf & occasion - #1 en Afrique',
+  title: 'Buysell - Marketplace #1 Africain | Achetez Vendez en Ligne',
+  description: 'Marketplace complète neuf & occasion - Achetez. Vendez. Revendez. Simplifiez.',
   keywords: 'achat, vente, occasion, neuf, marketplace, Afrique, Côte d\'Ivoire, Sénégal, Cameroun',
 }
 
@@ -93,6 +94,7 @@ export default function RootLayout({ children }) {
               <Header />
               <main>{children}</main>
               <Footer />
+              <Notification />
             </NotificationProvider>
           </CartProvider>
         </AuthProvider>
