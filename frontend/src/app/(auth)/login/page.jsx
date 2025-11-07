@@ -1,197 +1,356 @@
-'use client';
-
-import React, { useState } from 'react';
-import {
-  Box,
-  Card,
-  CardContent,
-  TextField,
-  Button,
-  Typography,
-  Link,
-  Divider,
-  Alert,
-  InputAdornment,
-  IconButton
-} from '@mui/material';
-import {
-  Email,
-  Lock,
-  Visibility,
-  VisibilityOff
-} from '@mui/icons-material';
-import NextLink from 'next/link';
-import { useAuth } from '../../../contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+'use client'
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   
-  const { login } = useAuth();
-  const router = useRouter();
+  const { login, isAuthenticated } = useAuth()
+  const router = useRouter()
 
-  const handleChange = (field) => (event) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: event.target.value
-    }));
-    setError('');
-  };
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push('/dashboard')
+    }
+  }, [isAuthenticated, router])
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    const result = await login(email, password)
     
-    if (!formData.email || !formData.password) {
-      setError('Veuillez remplir tous les champs');
-      return;
+    if (!result.success) {
+      setError(result.error)
     }
+    
+    setLoading(false)
+  }
 
-    try {
-      setLoading(true);
-      setError('');
-      
-      await login(formData.email, formData.password);
-      router.push('/');
-    } catch (error) {
-      setError(error.message || 'Erreur lors de la connexion');
-    } finally {
-      setLoading(false);
+  const handleDemoLogin = (role) => {
+    const demoAccounts = {
+      customer: { email: 'client@buysell.com', password: 'password' },
+      seller: { email: 'vendeur@buysell.com', password: 'password' },
+      admin: { email: 'admin@buysell.com', password: 'password' }
     }
-  };
+    
+    setEmail(demoAccounts[role].email)
+    setPassword(demoAccounts[role].password)
+  }
 
   return (
-    <Card 
-      sx={{ 
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px'
+    }}>
+      <div style={{
+        background: 'var(--white)',
+        padding: '40px',
+        borderRadius: '12px',
+        boxShadow: '0 15px 35px rgba(0,0,0,0.1)',
         width: '100%',
-        maxWidth: 400,
-        boxShadow: '0 20px 40px rgba(0,0,0,0.1)'
-      }}
-    >
-      <CardContent sx={{ p: 4 }}>
-        {/* En-tête */}
-        <Box sx={{ textAlign: 'center', mb: 4 }}>
-          <Typography 
-            variant="h4" 
-            component="h1" 
-            gutterBottom 
-            sx={{ 
-              fontWeight: 700,
-              background: 'linear-gradient(45deg, #2c5530, #4a7c59)',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              color: 'transparent'
-            }}
-          >
-            BuySell
-          </Typography>
-          <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 600 }}>
-            Connexion
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
+        maxWidth: '400px'
+      }}>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+          <Link href="/" style={{
+            fontSize: '32px',
+            fontWeight: 'bold',
+            color: 'var(--orange)',
+            textDecoration: 'none'
+          }}>
+            <span style={{ color: 'var(--black)' }}>Buy</span>Sell
+          </Link>
+          <p style={{ 
+            color: 'var(--gray)', 
+            marginTop: '8px',
+            fontSize: '14px'
+          }}>
             Connectez-vous à votre compte
-          </Typography>
-        </Box>
+          </p>
+        </div>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
+        {/* Comptes de démonstration */}
+        <div style={{ 
+          background: '#f8f9fa', 
+          padding: '15px', 
+          borderRadius: '8px',
+          marginBottom: '20px',
+          border: '1px solid #e9ecef'
+        }}>
+          <p style={{ 
+            fontSize: '12px', 
+            fontWeight: 'bold', 
+            marginBottom: '10px',
+            color: 'var(--gray-dark)'
+          }}>
+            COMPTES DE DÉMO :
+          </p>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => handleDemoLogin('customer')}
+              style={{
+                background: 'var(--blue)',
+                color: 'var(--white)',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer'
+              }}
+            >
+              Client
+            </button>
+            <button
+              onClick={() => handleDemoLogin('seller')}
+              style={{
+                background: 'var(--green)',
+                color: 'var(--white)',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer'
+              }}
+            >
+              Vendeur
+            </button>
+            <button
+              onClick={() => handleDemoLogin('admin')}
+              style={{
+                background: 'var(--orange)',
+                color: 'var(--white)',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer'
+              }}
+            >
+              Admin
+            </button>
+          </div>
+        </div>
 
         {/* Formulaire */}
-        <Box component="form" onSubmit={handleSubmit} sx={{ mb: 3 }}>
-          <TextField
-            fullWidth
-            label="Email"
-            type="email"
-            value={formData.email}
-            onChange={handleChange('email')}
-            margin="normal"
-            required
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Email color="action" />
-                </InputAdornment>
-              ),
-            }}
-          />
+        <form onSubmit={handleSubmit}>
+          {error && (
+            <div style={{
+              background: '#fee',
+              border: '1px solid #f5c6cb',
+              color: '#721c24',
+              padding: '12px',
+              borderRadius: '4px',
+              marginBottom: '20px',
+              fontSize: '14px'
+            }}>
+              <i className="fas fa-exclamation-triangle" style={{ marginRight: '8px' }}></i>
+              {error}
+            </div>
+          )}
 
-          <TextField
-            fullWidth
-            label="Mot de passe"
-            type={showPassword ? 'text' : 'password'}
-            value={formData.password}
-            onChange={handleChange('password')}
-            margin="normal"
-            required
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Lock color="action" />
-                </InputAdornment>
-              ),
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowPassword(!showPassword)}
-                    edge="end"
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
+              fontWeight: '500',
+              color: 'var(--dark)',
+              fontSize: '14px'
+            }}>
+              Adresse email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: '12px 15px',
+                border: '1px solid var(--gray-lighter)',
+                borderRadius: '4px',
+                fontSize: '14px',
+                transition: 'border-color 0.3s'
+              }}
+              placeholder="votre@email.com"
+            />
+          </div>
 
-          <Box sx={{ textAlign: 'right', mb: 2 }}>
-            <Link 
-              component={NextLink} 
-              href="/auth/forgot-password" 
-              variant="body2"
-            >
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
+              fontWeight: '500',
+              color: 'var(--dark)',
+              fontSize: '14px'
+            }}>
+              Mot de passe
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: '12px 15px',
+                border: '1px solid var(--gray-lighter)',
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}
+              placeholder="Votre mot de passe"
+            />
+          </div>
+
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '25px'
+          }}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '14px',
+              color: 'var(--gray)',
+              cursor: 'pointer'
+            }}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                style={{ margin: 0 }}
+              />
+              Se souvenir de moi
+            </label>
+
+            <Link href="/forgot-password" style={{
+              color: 'var(--orange)',
+              fontSize: '14px',
+              textDecoration: 'none'
+            }}>
               Mot de passe oublié ?
             </Link>
-          </Box>
+          </div>
 
-          <Button
+          <button
             type="submit"
-            fullWidth
-            variant="contained"
-            size="large"
             disabled={loading}
-            sx={{ mt: 2 }}
+            style={{
+              width: '100%',
+              background: loading ? 'var(--gray-light)' : 'var(--orange)',
+              color: 'var(--white)',
+              padding: '14px',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'background 0.3s'
+            }}
           >
-            {loading ? 'Connexion...' : 'Se connecter'}
-          </Button>
-        </Box>
+            {loading ? (
+              <>
+                <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
+                Connexion...
+              </>
+            ) : (
+              'Se connecter'
+            )}
+          </button>
+        </form>
 
-        <Divider sx={{ my: 3 }}>
-          <Typography variant="body2" color="text.secondary">
-            Ou
-          </Typography>
-        </Divider>
+        {/* Séparateur */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          margin: '25px 0',
+          color: 'var(--gray)'
+        }}>
+          <div style={{ flex: 1, height: '1px', background: 'var(--gray-lighter)' }}></div>
+          <span style={{ padding: '0 15px', fontSize: '14px' }}>Ou</span>
+          <div style={{ flex: 1, height: '1px', background: 'var(--gray-lighter)' }}></div>
+        </div>
 
-        {/* Lien inscription */}
-        <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary">
-            Pas encore de compte ?{' '}
-            <Link 
-              component={NextLink} 
-              href="/auth/register" 
-              fontWeight="600"
-            >
-              S'inscrire
-            </Link>
-          </Typography>
-        </Box>
-      </CardContent>
-    </Card>
-  );
+        {/* Connexion sociale */}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '25px' }}>
+          <button style={{
+            flex: 1,
+            background: '#3b5998',
+            color: 'var(--white)',
+            border: 'none',
+            padding: '12px',
+            borderRadius: '4px',
+            fontSize: '14px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px'
+          }}>
+            <i className="fab fa-facebook-f"></i>
+            Facebook
+          </button>
+          <button style={{
+            flex: 1,
+            background: '#4285f4',
+            color: 'var(--white)',
+            border: 'none',
+            padding: '12px',
+            borderRadius: '4px',
+            fontSize: '14px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px'
+          }}>
+            <i className="fab fa-google"></i>
+            Google
+          </button>
+        </div>
+
+        {/* Lien d'inscription */}
+        <div style={{ textAlign: 'center' }}>
+          <span style={{ color: 'var(--gray)', fontSize: '14px' }}>
+            Nouveau sur Buysell ?{' '}
+          </span>
+          <Link href="/register" style={{
+            color: 'var(--orange)',
+            fontWeight: '500',
+            textDecoration: 'none',
+            fontSize: '14px'
+          }}>
+            Créer un compte
+          </Link>
+        </div>
+
+        {/* Sécurité */}
+        <div style={{
+          marginTop: '20px',
+          padding: '15px',
+          background: '#f8f9fa',
+          borderRadius: '4px',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '12px', color: 'var(--gray)' }}>
+            <i className="fas fa-shield-alt" style={{ marginRight: '5px' }}></i>
+            Connexion sécurisée SSL
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
