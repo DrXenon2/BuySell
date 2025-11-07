@@ -12,6 +12,9 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const morgan = require('morgan');
+// Dans votre server.js principal
+const App = require('./app');
+const app = new App();
 const cookieParser = require('cookie-parser');
 const path = require('path');
 require('dotenv').config();
@@ -270,7 +273,12 @@ class BuySellServer {
         timestamp: new Date().toISOString()
       });
     });
-
+    
+app.start().then(server => {
+  console.log('Serveur démarré !');
+}).catch(error => {
+  console.error('Erreur démarrage:', error);
+});
     // Health checks
     this.app.get('/health', this.healthCheck.bind(this));
     this.app.get('/ready', this.readinessCheck.bind(this));
