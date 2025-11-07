@@ -1,312 +1,380 @@
-'use client';
-
-import React from 'react';
-import { Box, Container, Typography, Button, Grid, Card, CardContent } from '@mui/material';
-import { 
-  ShoppingBag, 
-  LocalShipping, 
-  Security, 
-  TrendingUp,
-  ArrowForward
-} from '@mui/icons-material';
-import Link from 'next/link';
-import { useAuth } from '../contexts/AuthContext';
-
-const FeatureCard = ({ icon, title, description }) => (
-  <Card 
-    sx={{ 
-      height: '100%',
-      transition: 'all 0.3s ease',
-      '&:hover': {
-        transform: 'translateY(-8px)',
-        boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
-      }
-    }}
-  >
-    <CardContent sx={{ textAlign: 'center', p: 4 }}>
-      <Box
-        sx={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 80,
-          height: 80,
-          borderRadius: '50%',
-          bgcolor: 'primary.main',
-          color: 'white',
-          mb: 3
-        }}
-      >
-        {icon}
-      </Box>
-      <Typography variant="h5" component="h3" gutterBottom sx={{ fontWeight: 600 }}>
-        {title}
-      </Typography>
-      <Typography variant="body1" color="text.secondary">
-        {description}
-      </Typography>
-    </CardContent>
-  </Card>
-);
+'use client'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useProducts } from '@/hooks/useProducts'
+import { useAuth } from '@/hooks/useAuth'
+import ProductCard from '@/components/products/ProductCard'
+import FlashSales from '@/components/home/FlashSales'
+import CategoryShowcase from '@/components/home/CategoryShowcase'
 
 export default function HomePage() {
-  const { user } = useAuth();
+  const { featuredProducts, officialStoreProducts, djassaProducts, loading, loadHomepageData } = useProducts()
+  const { user } = useAuth()
+  const [flashSales, setFlashSales] = useState([])
 
-  const features = [
-    {
-      icon: <ShoppingBag sx={{ fontSize: 40 }} />,
-      title: 'Achat Sécurisé',
-      description: 'Transactions sécurisées avec protection acheteur et système de confiance vérifié.'
-    },
-    {
-      icon: <LocalShipping sx={{ fontSize: 40 }} />,
-      title: 'Livraison Rapide',
-      description: 'Livraison express disponible avec suivi en temps réel et options de retrait.'
-    },
-    {
-      icon: <Security sx={{ fontSize: 40 }} />,
-      title: 'Paiements Protégés',
-      description: 'Paiements cryptés avec multiples options et protection contre la fraude.'
-    },
-    {
-      icon: <TrendingUp sx={{ fontSize: 40 }} />,
-      title: 'Vendez Facilement',
-      description: 'Outil de vente intuitif avec gestion d\'inventaire et analytics avancés.'
+  useEffect(() => {
+    loadHomepageData()
+    loadFlashSales()
+  }, [])
+
+  const loadFlashSales = async () => {
+    try {
+      const response = await fetch('/api/flash-sales')
+      if (response.ok) {
+        const data = await response.json()
+        setFlashSales(data.products)
+      }
+    } catch (error) {
+      console.error('Error loading flash sales:', error)
     }
-  ];
+  }
 
   return (
-    <Box>
+    <div style={{ minHeight: '100vh' }}>
       {/* Hero Section */}
-      <Box
-        sx={{
-          background: 'linear-gradient(135deg, #2c5530 0%, #4a7c59 100%)',
-          color: 'white',
-          py: { xs: 8, md: 12 },
-          position: 'relative',
-          overflow: 'hidden'
-        }}
-      >
-        <Container maxWidth="lg">
-          <Grid container spacing={6} alignItems="center">
-            <Grid item xs={12} md={6}>
-              <Typography
-                variant="h1"
-                component="h1"
-                sx={{
-                  fontSize: { xs: '2.5rem', md: '3.5rem' },
-                  fontWeight: 800,
-                  lineHeight: 1.2,
-                  mb: 2
-                }}
-              >
-                La marketplace{' '}
-                <Box
-                  component="span"
-                  sx={{
-                    background: 'linear-gradient(45deg, #ffd700, #ffed4e)',
-                    backgroundClip: 'text',
-                    WebkitBackgroundClip: 'text',
-                    color: 'transparent',
-                  }}
-                >
-                  moderne
-                </Box>{' '}
-                pour tous
-              </Typography>
-              <Typography
-                variant="h5"
-                component="p"
-                sx={{
-                  mb: 4,
-                  opacity: 0.9,
-                  fontSize: { xs: '1.1rem', md: '1.25rem' }
-                }}
-              >
-                Découvrez, achetez et vendez en toute confiance sur notre plateforme sécurisée. 
-                Rejoignez des milliers de membres satisfaits.
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                {user ? (
-                  <>
-                    <Button
-                      component={Link}
-                      href="/products"
-                      variant="contained"
-                      size="large"
-                      endIcon={<ArrowForward />}
-                      sx={{
-                        bgcolor: 'white',
-                        color: 'primary.main',
-                        '&:hover': {
-                          bgcolor: 'grey.100',
-                          transform: 'translateY(-2px)'
-                        }
-                      }}
-                    >
-                      Explorer les produits
-                    </Button>
-                    {user.role === 'seller' && (
-                      <Button
-                        component={Link}
-                        href="/dashboard/seller"
-                        variant="outlined"
-                        size="large"
-                        sx={{
-                          borderColor: 'white',
-                          color: 'white',
-                          '&:hover': {
-                            borderColor: 'grey.300',
-                            bgcolor: 'rgba(255,255,255,0.1)'
-                          }
-                        }}
-                      >
-                        Tableau de bord
-                      </Button>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      component={Link}
-                      href="/auth/register"
-                      variant="contained"
-                      size="large"
-                      sx={{
-                        bgcolor: 'white',
-                        color: 'primary.main',
-                        '&:hover': {
-                          bgcolor: 'grey.100',
-                          transform: 'translateY(-2px)'
-                        }
-                      }}
-                    >
-                      Commencer gratuitement
-                    </Button>
-                    <Button
-                      component={Link}
-                      href="/products"
-                      variant="outlined"
-                      size="large"
-                      sx={{
-                        borderColor: 'white',
-                        color: 'white',
-                        '&:hover': {
-                          borderColor: 'grey.300',
-                          bgcolor: 'rgba(255,255,255,0.1)'
-                        }
-                      }}
-                    >
-                      Voir les produits
-                    </Button>
-                  </>
-                )}
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Box
-                sx={{
-                  position: 'relative',
-                  textAlign: 'center'
-                }}
-              >
-                <Box
-                  component="img"
-                  src="/images/hero-illustration.svg"
-                  alt="BuySell Platform"
-                  sx={{
-                    maxWidth: '100%',
-                    height: 'auto',
-                    filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.3))'
-                  }}
-                />
-              </Box>
-            </Grid>
-          </Grid>
-        </Container>
-      </Box>
+      <section style={{
+        background: 'linear-gradient(135deg, var(--orange), #FF8C00)',
+        color: 'var(--white)',
+        padding: '60px 0',
+        textAlign: 'center',
+        marginBottom: '30px'
+      }}>
+        <div className="container">
+          <h1 style={{
+            fontSize: '48px',
+            fontWeight: 'bold',
+            marginBottom: '20px',
+            textShadow: '2px 2px 4px rgba(0,0,0,0.3)'
+          }}>
+            BLACK FRIDAY EXCLUSIF
+          </h1>
+          <p style={{
+            fontSize: '20px',
+            marginBottom: '30px',
+            opacity: 0.9
+          }}>
+            Jusqu'à -70% sur 50,000+ produits | Livraison à 1,000 FCFA
+          </p>
+          <Link href="/flash-sales" style={{
+            background: 'var(--white)',
+            color: 'var(--orange)',
+            padding: '15px 30px',
+            borderRadius: '25px',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            transition: 'transform 0.3s',
+            display: 'inline-block',
+            textDecoration: 'none'
+          }}>
+            VOIR LES OFFRES <i className="fas fa-arrow-right" style={{ marginLeft: '8px' }}></i>
+          </Link>
+        </div>
+      </section>
 
-      {/* Features Section */}
-      <Container maxWidth="lg" sx={{ py: { xs: 8, md: 12 } }}>
-        <Box sx={{ textAlign: 'center', mb: 8 }}>
-          <Typography
-            variant="h2"
-            component="h2"
-            sx={{
-              fontSize: { xs: '2rem', md: '2.5rem' },
-              fontWeight: 700,
-              mb: 2
-            }}
-          >
-            Pourquoi choisir BuySell ?
-          </Typography>
-          <Typography
-            variant="h6"
-            component="p"
-            color="text.secondary"
-            sx={{ maxWidth: 600, mx: 'auto' }}
-          >
-            Une expérience d'achat et de vente optimisée avec toutes les fonctionnalités 
-            dont vous avez besoin pour réussir.
-          </Typography>
-        </Box>
+      {/* Ventes Flash */}
+      <FlashSales products={flashSales} />
 
-        <Grid container spacing={4}>
-          {features.map((feature, index) => (
-            <Grid item xs={12} sm={6} md={3} key={index}>
-              <FeatureCard {...feature} />
-            </Grid>
-          ))}
-        </Grid>
-      </Container>
+      {/* Catégories Populaires */}
+      <CategoryShowcase />
 
-      {/* CTA Section */}
-      <Box
-        sx={{
-          bgcolor: 'grey.50',
-          py: { xs: 8, md: 12 }
-        }}
-      >
-        <Container maxWidth="md" sx={{ textAlign: 'center' }}>
-          <Typography
-            variant="h3"
-            component="h2"
-            sx={{
-              fontSize: { xs: '2rem', md: '2.5rem' },
-              fontWeight: 700,
-              mb: 2
-            }}
-          >
-            Prêt à commencer ?
-          </Typography>
-          <Typography
-            variant="h6"
-            component="p"
-            color="text.secondary"
-            sx={{ mb: 4, maxWidth: 500, mx: 'auto' }}
-          >
-            Rejoignez notre communauté grandissante et découvrez une nouvelle façon 
-            d'acheter et de vendre en ligne.
-          </Typography>
-          <Button
-            component={Link}
-            href={user ? '/products' : '/auth/register'}
-            variant="contained"
-            size="large"
-            endIcon={<ArrowForward />}
-            sx={{
-              px: 4,
-              py: 1.5,
-              fontSize: '1.1rem',
-              '&:hover': {
-                transform: 'translateY(-2px)'
-              }
-            }}
-          >
-            {user ? 'Explorer maintenant' : 'Créer un compte gratuit'}
-          </Button>
-        </Container>
-      </Box>
-    </Box>
-  );
+      {/* Boutiques Officielles */}
+      <section style={{ marginBottom: '40px' }}>
+        <div className="container">
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px',
+            padding: '0 15px'
+          }}>
+            <h2 style={{
+              fontSize: '24px',
+              fontWeight: 'bold',
+              color: 'var(--dark)'
+            }}>
+              🏪 BOUTIQUES OFFICIELLES
+            </h2>
+            <Link href="/boutiques-officielles" style={{
+              color: 'var(--orange)',
+              fontWeight: 500,
+              textDecoration: 'none'
+            }}>
+              Voir tout <i className="fas fa-chevron-right" style={{ marginLeft: '5px' }}></i>
+            </Link>
+          </div>
+          
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            gap: '20px',
+            padding: '0 15px'
+          }}>
+            {officialStoreProducts.slice(0, 8).map(product => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Section Djassa */}
+      <section style={{ 
+        marginBottom: '40px',
+        background: 'linear-gradient(45deg, #00A650, #00C853)',
+        padding: '40px 0'
+      }}>
+        <div className="container">
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px',
+            padding: '0 15px'
+          }}>
+            <div>
+              <h2 style={{
+                fontSize: '24px',
+                fontWeight: 'bold',
+                color: 'var(--white)',
+                marginBottom: '8px'
+              }}>
+                🔄 DJASSA - SECONDE MAIN
+              </h2>
+              <p style={{ color: 'rgba(255,255,255,0.9)' }}>
+                Économisez jusqu'à 70% sur des produits de qualité vérifiée
+              </p>
+            </div>
+            <Link href="/djassa" style={{
+              background: 'var(--white)',
+              color: 'var(--green)',
+              padding: '12px 24px',
+              borderRadius: '25px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              textDecoration: 'none'
+            }}>
+              Explorer Djassa
+            </Link>
+          </div>
+          
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            gap: '20px',
+            padding: '0 15px'
+          }}>
+            {djassaProducts.slice(0, 6).map(product => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Produits en Vedette */}
+      <section style={{ marginBottom: '40px' }}>
+        <div className="container">
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px',
+            padding: '0 15px'
+          }}>
+            <h2 style={{
+              fontSize: '24px',
+              fontWeight: 'bold',
+              color: 'var(--dark)'
+            }}>
+              🔥 MEILLEURES VENTES
+            </h2>
+            <Link href="/produits" style={{
+              color: 'var(--orange)',
+              fontWeight: 500,
+              textDecoration: 'none'
+            }}>
+              Voir tout <i className="fas fa-chevron-right" style={{ marginLeft: '5px' }}></i>
+            </Link>
+          </div>
+          
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            gap: '20px',
+            padding: '0 15px'
+          }}>
+            {featuredProducts.slice(0, 8).map(product => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Services Buysell */}
+      <section style={{ 
+        background: 'var(--white)',
+        padding: '40px 0',
+        marginBottom: '40px'
+      }}>
+        <div className="container">
+          <h2 style={{
+            fontSize: '24px',
+            fontWeight: 'bold',
+            textAlign: 'center',
+            marginBottom: '30px'
+          }}>
+            🚀 POURQUOI CHOISIR BUYSELL ?
+          </h2>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '20px',
+            textAlign: 'center'
+          }}>
+            <div style={{ padding: '20px' }}>
+              <div style={{
+                width: '60px',
+                height: '60px',
+                background: 'var(--orange)',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 15px',
+                color: 'var(--white)',
+                fontSize: '24px'
+              }}>
+                <i className="fas fa-shield-alt"></i>
+              </div>
+              <h3 style={{ marginBottom: '10px', fontSize: '18px' }}>Paiement Sécurisé</h3>
+              <p style={{ color: 'var(--gray)', fontSize: '14px' }}>
+                Transactions 100% sécurisées avec cryptage SSL
+              </p>
+            </div>
+            
+            <div style={{ padding: '20px' }}>
+              <div style={{
+                width: '60px',
+                height: '60px',
+                background: 'var(--green)',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 15px',
+                color: 'var(--white)',
+                fontSize: '24px'
+              }}>
+                <i className="fas fa-truck"></i>
+              </div>
+              <h3 style={{ marginBottom: '10px', fontSize: '18px' }}>Livraison Express</h3>
+              <p style={{ color: 'var(--gray)', fontSize: '14px' }}>
+                Livraison en 24h dans les grandes villes
+              </p>
+            </div>
+            
+            <div style={{ padding: '20px' }}>
+              <div style={{
+                width: '60px',
+                height: '60px',
+                background: 'var(--blue)',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 15px',
+                color: 'var(--white)',
+                fontSize: '24px'
+              }}>
+                <i className="fas fa-undo"></i>
+              </div>
+              <h3 style={{ marginBottom: '10px', fontSize: '18px' }}>Retours Faciles</h3>
+              <p style={{ color: 'var(--gray)', fontSize: '14px' }}>
+                30 jours satisfait ou remboursé
+              </p>
+            </div>
+            
+            <div style={{ padding: '20px' }}>
+              <div style={{
+                width: '60px',
+                height: '60px',
+                background: 'var(--red)',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 15px',
+                color: 'var(--white)',
+                fontSize: '24px'
+              }}>
+                <i className="fas fa-headset"></i>
+              </div>
+              <h3 style={{ marginBottom: '10px', fontSize: '18px' }}>Support 24/7</h3>
+              <p style={{ color: 'var(--gray)', fontSize: '14px' }}>
+                Assistance client toujours disponible
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Newsletter */}
+      <section style={{
+        background: 'var(--orange)',
+        color: 'var(--white)',
+        padding: '40px 0'
+      }}>
+        <div className="container" style={{ textAlign: 'center' }}>
+          <h3 style={{
+            fontSize: '24px',
+            fontWeight: 'bold',
+            marginBottom: '15px'
+          }}>
+            📧 RESTEZ INFORMÉ
+          </h3>
+          <p style={{
+            marginBottom: '25px',
+            fontSize: '16px',
+            opacity: 0.9
+          }}>
+            Recevez les meilleures offres et nouveautés en avant-première
+          </p>
+          <div style={{
+            maxWidth: '400px',
+            margin: '0 auto',
+            display: 'flex'
+          }}>
+            <input
+              type="email"
+              placeholder="Votre adresse email"
+              style={{
+                flex: 1,
+                padding: '12px 15px',
+                border: 'none',
+                borderRadius: '4px 0 0 4px',
+                fontSize: '14px',
+                outline: 'none'
+              }}
+            />
+            <button style={{
+              background: 'var(--dark)',
+              color: 'var(--white)',
+              padding: '12px 20px',
+              border: 'none',
+              borderRadius: '0 4px 4px 0',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}>
+              S'abonner
+            </button>
+          </div>
+          <p style={{
+            marginTop: '15px',
+            fontSize: '12px',
+            opacity: 0.8
+          }}>
+            En vous abonnant, vous acceptez notre politique de confidentialité
+          </p>
+        </div>
+      </section>
+    </div>
+  )
 }
