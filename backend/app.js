@@ -8,9 +8,10 @@ const cookieParser = require('cookie-parser');
 const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 const xss = require('xss-clean');
+const path = require('path');
 
 // Configuration
-const config = require('./config');
+const config = require('./src/config');
 
 // Middlewares
 const errorHandler = require('./src/middleware/errorHandler');
@@ -20,7 +21,18 @@ const requestId = require('./src/middleware/requestId');
 const timeout = require('./src/middleware/timeout');
 
 // Routes
-const routes = require('./src/routes');
+const authRoutes = require('./src/routes/auth');
+const userRoutes = require('./src/routes/users');
+const productRoutes = require('./src/routes/products');
+const categoryRoutes = require('./src/routes/categories');
+const orderRoutes = require('./src/routes/orders');
+const cartRoutes = require('./src/routes/cart');
+const reviewRoutes = require('./src/routes/reviews');
+const paymentRoutes = require('./src/routes/payments');
+const webhookRoutes = require('./src/routes/webhooks');
+const uploadRoutes = require('./src/routes/uploads');
+const analyticsRoutes = require('./src/routes/analytics');
+const adminRoutes = require('./src/routes/admin');
 
 // Services
 const logger = require('./src/utils/logger');
@@ -53,27 +65,73 @@ class App {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
           scriptSrc: ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
           imgSrc: ["'self'", "data:", "https:", "blob:"],
-          connectSrc: ["'self'", "https:", "wss:"],
+          connectSrc: ["'self'", "https://api.stripe.com", "https://*.supabase.co"],
           fontSrc: ["'self'", "https://fonts.gstatic.com"],
-          objectSrc: ["'none'"],
-          mediaSrc: ["'self'"],
-          frameSrc: ["'self'", "https://js.stripe.com"],
-          childSrc: ["'self'", "blob:"]
+          frameSrc: ["'self'", "https://js.stripe.com"]
         },
       },
       crossOriginEmbedderPolicy: false,
-      hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true
-      }
+      crossOriginResourcePolicy: { policy: "cross-origin" }
     }));
 
-    // CORS
-    this.app.use(cors(config.cors));
+    // CORS Configuration
+    const corsOptions = {
+      origin: (origin, callback) => {
+        // Autoriser les requêtes sans origin (mobile apps, Postman, etc.)
+        if (!origin) return callback(null, true);
+        
+        const allowedOrigins = [
+          'http://localhost:3000',
+          'http://127.0.0.1:3000',
+          'http://localhost:3001',
+          'https://localhost:3000',
+          'https://localhost:3001',
+        ];
+
+        // Ajouter les domaines de production
+        if (process.env.FRONTEND_URL) {
+          allowedOrigins.push(process.env.FRONTEND_URL);
+        }
+        if (process.env.BACKEND_URL) {
+          allowedOrigins.push(process.env.BACKEND_URL);
+        }
+
+        // Ajouter les domaines supplémentaires
+        if (process.env.ALLOWED_ORIGINS) {
+          const additionalOrigins = process.env.ALLOWED_ORIGINS.split(',');
+          allowedOrigins.push(...additionalOrigins);
+        }
+
+        // En développement, autoriser toutes les origines
+        if (config.env === 'development') {
+          return callback(null, true);
+        }
+
+        if (allowedOrigins.indexOf(origin) !== -1) {
+          callback(null, true);
+        } else {
+          logger.warn(`CORS bloqué pour l'origine: ${origin}`);
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'X-CSRF-Token',
+        'Accept',
+        'Stripe-Signature',
+        'X-Supabase-Secret'
+      ],
+      maxAge: 86400 // 24 hours
+    };
+
+    this.app.use(cors(corsOptions));
     logger.debug('✅ CORS configuré');
 
     // Rate Limiting
@@ -88,6 +146,10 @@ class App {
         },
         standardHeaders: true,
         legacyHeaders: false,
+        skip: (req) => {
+          // Ne pas limiter les webhooks et health checks
+          return req.path.startsWith('/webhooks') || req.path === '/health';
+        },
         handler: (req, res) => {
           logger.warn('Rate limit dépassé', {
             ip: req.ip,
@@ -105,20 +167,20 @@ class App {
 
     // Rate limiters pour différents endpoints
     const generalLimiter = createRateLimiter(
-      config.rateLimit.windowMs,
-      config.rateLimit.max,
+      15 * 60 * 1000, // 15 minutes
+      process.env.RATE_LIMIT_MAX_REQUESTS || 1000,
       'Trop de requêtes, veuillez réessayer dans 15 minutes.'
     );
 
     const authLimiter = createRateLimiter(
       15 * 60 * 1000, // 15 minutes
-      5, // 5 tentatives de connexion
+      10, // 10 tentatives de connexion
       'Trop de tentatives de connexion, veuillez réessayer dans 15 minutes.'
     );
 
     const strictLimiter = createRateLimiter(
       60 * 1000, // 1 minute
-      10, // 10 requêtes par minute
+      30, // 30 requêtes par minute
       'Trop de requêtes, veuillez ralentir.'
     );
 
@@ -145,7 +207,7 @@ class App {
 
     // Body parsing avec limites
     this.app.use(express.json({
-      limit: config.upload.maxFileSize,
+      limit: '50mb',
       verify: (req, res, buf) => {
         req.rawBody = buf;
       }
@@ -153,20 +215,20 @@ class App {
 
     this.app.use(express.urlencoded({
       extended: true,
-      limit: config.upload.maxFileSize,
-      parameterLimit: 1000 // Nombre maximum de paramètres
+      limit: '50mb',
+      parameterLimit: 1000
     }));
 
     logger.debug('✅ Body parser configuré');
 
     // Cookie parser
-    this.app.use(cookieParser(config.security.cookieSecret));
+    this.app.use(cookieParser(process.env.COOKIE_SECRET || 'buy-sell-cookie-secret'));
     logger.debug('✅ Cookie parser configuré');
 
     // Sécurité des données
-    this.app.use(mongoSanitize()); // Prévention NoSQL injection
-    this.app.use(xss()); // Prévention XSS
-    this.app.use(hpp()); // Prévention parameter pollution
+    this.app.use(mongoSanitize());
+    this.app.use(xss());
+    this.app.use(hpp());
 
     logger.debug('✅ Sécurité des données configurée');
   }
@@ -181,7 +243,7 @@ class App {
     this.app.use(requestId);
 
     // Timeout des requêtes
-    this.app.use(timeout(config.server.requestTimeout));
+    this.app.use(timeout(30000)); // 30 secondes
 
     // Logging des requêtes
     if (config.env !== 'test') {
@@ -218,11 +280,15 @@ class App {
     logger.info('🛣️  Configuration des routes...');
 
     // Servir les fichiers statiques
-    this.app.use('/uploads', express.static(config.upload.uploadDir, {
-      maxAge: config.env === 'production' ? '1d' : '0',
-      setHeaders: (res, path) => {
-        if (path.endsWith('.pdf')) {
+    this.app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+      maxAge: config.env === 'production' ? '7d' : '0',
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.pdf')) {
           res.set('Content-Type', 'application/pdf');
+        }
+        // Cache control pour les images
+        if (filePath.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+          res.set('Cache-Control', 'public, max-age=86400'); // 1 jour
         }
       }
     }));
@@ -233,41 +299,65 @@ class App {
         status: 'OK',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
-        environment: config.env,
-        version: config.app.version,
+        environment: config.env || 'development',
+        version: '1.0.0',
         services: {
           database: 'connected',
           memory: {
             used: process.memoryUsage().heapUsed,
-            total: process.memoryUsage().heapTotal
+            total: process.memoryUsage().heapTotal,
+            rss: process.memoryUsage().rss
           },
-          node: process.version
+          node: process.version,
+          platform: process.platform
         }
       };
 
-      // Vérification de la base de données
       try {
+        // Vérification Supabase
         const { supabase } = require('./src/config/supabase');
         const { data, error } = await supabase
           .from('profiles')
           .select('count')
-          .limit(1);
+          .limit(1)
+          .single();
 
-        if (error) {
-          healthCheck.status = 'DEGRADED';
-          healthCheck.services.database = 'error';
-          healthCheck.services.database_error = error.message;
-        } else {
-          healthCheck.services.database = 'connected';
-        }
+        if (error) throw error;
+        
+        healthCheck.services.database = 'connected';
+        healthCheck.services.supabase = 'healthy';
+
       } catch (error) {
         healthCheck.status = 'DEGRADED';
         healthCheck.services.database = 'error';
+        healthCheck.services.supabase = 'unhealthy';
         healthCheck.services.database_error = error.message;
+      }
+
+      // Vérification Redis si activé
+      if (process.env.REDIS_ENABLED === 'true') {
+        try {
+          const redis = require('./src/config/redis');
+          await redis.ping();
+          healthCheck.services.redis = 'connected';
+        } catch (error) {
+          healthCheck.status = 'DEGRADED';
+          healthCheck.services.redis = 'error';
+        }
       }
 
       const statusCode = healthCheck.status === 'OK' ? 200 : 503;
       res.status(statusCode).json(healthCheck);
+    });
+
+    // Readiness check
+    this.app.get('/ready', (req, res) => {
+      res.status(200).json({
+        status: 'READY',
+        service: 'BuySell API',
+        timestamp: new Date().toISOString(),
+        environment: config.env
+      });
     });
 
     // Informations API
@@ -275,85 +365,54 @@ class App {
       res.json({
         success: true,
         data: {
-          name: config.app.name,
-          version: config.app.version,
+          name: 'BuySell Marketplace API',
+          version: '1.0.0',
           environment: config.env,
           timestamp: new Date().toISOString(),
           documentation: '/api/docs',
           status: 'operational',
           endpoints: {
-            auth: {
-              login: 'POST /api/auth/login',
-              register: 'POST /api/auth/register',
-              refresh: 'POST /api/auth/refresh',
-              logout: 'POST /api/auth/logout',
-              forgotPassword: 'POST /api/auth/forgot-password',
-              resetPassword: 'POST /api/auth/reset-password'
-            },
-            users: {
-              profile: 'GET /api/users/profile',
-              updateProfile: 'PUT /api/users/profile',
-              addresses: 'GET /api/users/addresses',
-              wishlist: 'GET /api/users/wishlist'
-            },
-            products: {
-              list: 'GET /api/products',
-              get: 'GET /api/products/:id',
-              create: 'POST /api/products',
-              update: 'PUT /api/products/:id',
-              delete: 'DELETE /api/products/:id'
-            },
-            categories: {
-              list: 'GET /api/categories',
-              get: 'GET /api/categories/:id'
-            },
-            orders: {
-              list: 'GET /api/orders',
-              create: 'POST /api/orders',
-              get: 'GET /api/orders/:id',
-              update: 'PUT /api/orders/:id'
-            },
-            cart: {
-              get: 'GET /api/cart',
-              add: 'POST /api/cart',
-              update: 'PUT /api/cart/:itemId',
-              remove: 'DELETE /api/cart/:itemId',
-              clear: 'DELETE /api/cart'
-            },
-            payments: {
-              createIntent: 'POST /api/payments/create-intent',
-              confirm: 'POST /api/payments/confirm',
-              history: 'GET /api/payments/history'
-            },
-            reviews: {
-              create: 'POST /api/reviews',
-              list: 'GET /api/reviews/product/:productId',
-              update: 'PUT /api/reviews/:id',
-              delete: 'DELETE /api/reviews/:id'
-            },
-            uploads: {
-              image: 'POST /api/uploads/image',
-              multiple: 'POST /api/uploads/multiple',
-              delete: 'DELETE /api/uploads'
-            },
-            admin: {
-              dashboard: 'GET /api/admin/dashboard',
-              users: 'GET /api/admin/users',
-              products: 'GET /api/admin/products',
-              orders: 'GET /api/admin/orders'
-            },
-            analytics: {
-              dashboard: 'GET /api/analytics/dashboard',
-              sales: 'GET /api/analytics/sales',
-              products: 'GET /api/analytics/products'
-            }
+            auth: '/api/auth',
+            users: '/api/users',
+            products: '/api/products',
+            categories: '/api/categories',
+            orders: '/api/orders',
+            cart: '/api/cart',
+            reviews: '/api/reviews',
+            payments: '/api/payments',
+            uploads: '/api/uploads',
+            analytics: '/api/analytics',
+            admin: '/api/admin',
+            webhooks: '/api/webhooks'
           }
         }
       });
     });
 
+    // API Documentation
+    this.app.get('/api/docs', (req, res) => {
+      res.json({
+        documentation: 'https://docs.buy-sell.africa',
+        version: '1.0.0',
+        environment: config.env,
+        openapi: '/api/openapi.json',
+        postman: '/api/postman.json'
+      });
+    });
+
     // Routes API principales
-    this.app.use('/api', routes);
+    this.app.use('/api/auth', authRoutes);
+    this.app.use('/api/users', userRoutes);
+    this.app.use('/api/products', productRoutes);
+    this.app.use('/api/categories', categoryRoutes);
+    this.app.use('/api/orders', orderRoutes);
+    this.app.use('/api/cart', cartRoutes);
+    this.app.use('/api/reviews', reviewRoutes);
+    this.app.use('/api/payments', paymentRoutes);
+    this.app.use('/api/uploads', uploadRoutes);
+    this.app.use('/api/analytics', analyticsRoutes);
+    this.app.use('/api/admin', adminRoutes);
+    this.app.use('/api/webhooks', webhookRoutes);
 
     logger.info('✅ Routes principales configurées');
   }
@@ -367,14 +426,32 @@ class App {
     // Middleware pour les webhooks (body raw)
     const webhookMiddleware = express.raw({
       type: 'application/json',
-      limit: config.upload.maxFileSize
+      limit: '10mb'
     });
 
-    // Webhook Stripe
-    this.app.post('/webhooks/stripe', webhookMiddleware, (req, res) => {
+    // Webhook Stripe (endpoint direct)
+    this.app.post('/webhooks/stripe', webhookMiddleware, async (req, res) => {
       try {
+        // Vérifier la signature Stripe en production
+        if (config.env === 'production') {
+          const stripe = require('./src/config/stripe');
+          const signature = req.headers['stripe-signature'];
+          
+          try {
+            const event = stripe.webhooks.constructEvent(
+              req.rawBody, 
+              signature, 
+              process.env.STRIPE_WEBHOOK_SECRET
+            );
+            req.stripeEvent = event;
+          } catch (error) {
+            logger.warn('Signature Stripe invalide:', error.message);
+            return res.status(400).json({ error: 'Signature webhook invalide' });
+          }
+        }
+
         const stripeWebhook = require('./src/controllers/webhookController').stripeWebhook;
-        stripeWebhook(req, res);
+        await stripeWebhook(req, res);
       } catch (error) {
         logger.error('Erreur webhook Stripe:', error);
         res.status(500).json({
@@ -385,10 +462,19 @@ class App {
     });
 
     // Webhook Supabase Auth
-    this.app.post('/webhooks/supabase-auth', webhookMiddleware, (req, res) => {
+    this.app.post('/webhooks/supabase-auth', webhookMiddleware, async (req, res) => {
       try {
+        // Vérification du secret en production
+        if (config.env === 'production') {
+          const supabaseSecret = req.headers['x-supabase-secret'];
+          if (supabaseSecret !== process.env.SUPABASE_WEBHOOK_SECRET) {
+            logger.warn('Secret Supabase invalide');
+            return res.status(401).json({ error: 'Non autorisé' });
+          }
+        }
+
         const supabaseAuthWebhook = require('./src/controllers/webhookController').supabaseAuthWebhook;
-        supabaseAuthWebhook(req, res);
+        await supabaseAuthWebhook(req, res);
       } catch (error) {
         logger.error('Erreur webhook Supabase Auth:', error);
         res.status(500).json({
@@ -407,8 +493,23 @@ class App {
   setupErrorHandling() {
     logger.info('🚨 Configuration de la gestion des erreurs...');
 
-    // Route 404
-    this.app.use(notFoundHandler);
+    // Route 404 pour API
+    this.app.use('/api/*', (req, res) => {
+      res.status(404).json({
+        error: 'Route API non trouvée',
+        message: `La route ${req.method} ${req.originalUrl} n'existe pas`,
+        code: 'ROUTE_NOT_FOUND'
+      });
+    });
+
+    // Route 404 globale
+    this.app.use('*', (req, res) => {
+      res.status(404).json({
+        error: 'Route non trouvée',
+        message: `La route ${req.method} ${req.originalUrl} n'existe pas`,
+        code: 'ROUTE_NOT_FOUND'
+      });
+    });
 
     // Handler d'erreurs global
     this.app.use(errorHandler);
@@ -447,18 +548,15 @@ class App {
   /**
    * Démarrer le serveur
    */
-  start() {
-    const PORT = config.server.port;
-    const HOST = config.server.host;
-    
+  start(port = process.env.PORT || 3001) {
     return new Promise((resolve, reject) => {
-      const server = this.app.listen(PORT, HOST, (error) => {
+      const server = this.app.listen(port, (error) => {
         if (error) {
           logger.error('❌ Erreur lors du démarrage du serveur:', error);
           return reject(error);
         }
 
-        this.logStartupInfo(server);
+        this.logStartupInfo(server, port);
         resolve(server);
       });
 
@@ -469,7 +567,7 @@ class App {
       });
 
       // Gestion du timeout du serveur
-      server.setTimeout(config.server.requestTimeout);
+      server.setTimeout(30000);
 
       logger.debug('✅ Serveur HTTP configuré');
     });
@@ -478,18 +576,20 @@ class App {
   /**
    * Logger les informations de démarrage
    */
-  logStartupInfo(server) {
+  logStartupInfo(server, port) {
     const address = server.address();
     const protocol = config.env === 'production' ? 'https' : 'http';
-    const host = config.env === 'production' ? config.app.backendUrl : `${config.server.host}:${address.port}`;
+    const host = config.env === 'production' 
+      ? (process.env.BACKEND_URL || `localhost:${port}`)
+      : `localhost:${port}`;
     
     logger.info('='.repeat(70));
     logger.info(`🎉 SERVEUR DÉMARRÉ AVEC SUCCÈS`);
     logger.info('='.repeat(70));
-    logger.info(`📋 Application: ${config.app.name} v${config.app.version}`);
+    logger.info(`📋 Application: BuySell Marketplace API v1.0.0`);
     logger.info(`📍 Environnement: ${config.env}`);
     logger.info(`🌐 URL: ${protocol}://${host}`);
-    logger.info(`🔧 Port: ${address.port}`);
+    logger.info(`🔧 Port: ${port}`);
     logger.info(`👤 Processus: ${process.pid}`);
     logger.info(`🕒 Démarrage: ${new Date().toISOString()}`);
     logger.info('='.repeat(70));
@@ -506,7 +606,9 @@ class App {
   logAvailableEndpoints(protocol, host) {
     const endpoints = [
       { method: 'GET', path: '/health', description: 'Health check' },
+      { method: 'GET', path: '/ready', description: 'Readiness check' },
       { method: 'GET', path: '/api', description: 'Informations API' },
+      { method: 'GET', path: '/api/docs', description: 'Documentation' },
       { method: 'POST', path: '/api/auth/login', description: 'Connexion' },
       { method: 'POST', path: '/api/auth/register', description: 'Inscription' },
       { method: 'GET', path: '/api/products', description: 'Liste produits' },
@@ -516,7 +618,8 @@ class App {
       { method: 'GET', path: '/api/orders', description: 'Mes commandes' },
       { method: 'POST', path: '/api/payments/create-intent', description: 'Paiement' },
       { method: 'POST', path: '/api/uploads/image', description: 'Upload image' },
-      { method: 'POST', path: '/webhooks/stripe', description: 'Webhook Stripe' }
+      { method: 'POST', path: '/webhooks/stripe', description: 'Webhook Stripe' },
+      { method: 'POST', path: '/webhooks/supabase-auth', description: 'Webhook Supabase' }
     ];
 
     logger.info('📋 ENDPOINTS DISPONIBLES:');
@@ -538,11 +641,10 @@ class App {
    */
   getServerInfo() {
     return {
-      name: config.app.name,
-      version: config.app.version,
+      name: 'BuySell Marketplace API',
+      version: '1.0.0',
       environment: config.env,
-      port: config.server.port,
-      host: config.server.host,
+      port: process.env.PORT || 3001,
       pid: process.pid,
       uptime: process.uptime(),
       memory: process.memoryUsage(),
@@ -551,7 +653,7 @@ class App {
         cors: true,
         helmet: true,
         rateLimit: true,
-        clustering: config.env === 'production'
+        security: true
       }
     };
   }
