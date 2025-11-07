@@ -1,176 +1,225 @@
-'use client';
-
-import { useState, useEffect } from 'react';
-import { useSearch } from '../../contexts/SearchContext';
-import { useApp } from '../../contexts/AppContext';
-import { ProductGrid } from '../../components/products/ProductGrid';
-import { ProductFilters } from '../../components/products/ProductFilters';
-import { ProductSort } from '../../components/products/ProductSort';
-import { Pagination } from '../../components/ui/Pagination';
-import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
+'use client'
+import { useState, useEffect } from 'react'
+import { useProducts } from '@/hooks/useProducts'
+import ProductCard from '@/components/products/ProductCard'
+import ProductFilters from '@/components/products/ProductFilters'
+import Pagination from '@/components/ui/Pagination'
 
 export default function ProductsPage() {
-  const { 
-    results: products, 
-    isLoading, 
-    pagination, 
-    setPage,
-    search,
-    filters,
-    setFilters,
-    query
-  } = useSearch();
-
-  const { isMobile, toggleSidebar, setPageTitle, setBreadcrumbs } = useApp();
-
-  // État local pour les filtres
-  const [localFilters, setLocalFilters] = useState(filters);
+  const [products, setProducts] = useState([])
+  const [filteredProducts, setFilteredProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [filters, setFilters] = useState({
+    category: '',
+    priceRange: [0, 1000000],
+    condition: '',
+    rating: 0,
+    sortBy: 'popular'
+  })
+  
+  const productsPerPage = 12
 
   useEffect(() => {
-    setPageTitle('Catalogue des Produits');
-    setBreadcrumbs([
-      { label: 'Accueil', href: '/' },
-      { label: 'Produits', href: '/products' }
-    ]);
-  }, [setPageTitle, setBreadcrumbs]);
+    loadProducts()
+  }, [])
 
-  // Appliquer les filtres avec debounce
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (JSON.stringify(localFilters) !== JSON.stringify(filters)) {
-        setFilters(localFilters);
-        search(query, localFilters, 1);
+    applyFilters()
+  }, [products, filters])
+
+  const loadProducts = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('/api/products')
+      if (response.ok) {
+        const data = await response.json()
+        setProducts(data.products || [])
       }
-    }, 500);
+    } catch (error) {
+      console.error('Error loading products:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-    return () => clearTimeout(timeoutId);
-  }, [localFilters, filters, setFilters, search, query]);
+  const applyFilters = () => {
+    let filtered = [...products]
 
-  const handleFilterChange = (newFilters) => {
-    setLocalFilters(prev => ({ ...prev, ...newFilters }));
-  };
+    // Filtre par catégorie
+    if (filters.category) {
+      filtered = filtered.filter(product => 
+        product.category?.slug === filters.category
+      )
+    }
 
-  const handlePageChange = (newPage) => {
-    setPage(newPage);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+    // Filtre par prix
+    filtered = filtered.filter(product => 
+      product.price >= filters.priceRange[0] && 
+      product.price <= filters.priceRange[1]
+    )
 
-  if (isLoading && products.length === 0) {
+    // Filtre par condition
+    if (filters.condition) {
+      filtered = filtered.filter(product => 
+        product.condition === filters.condition
+      )
+    }
+
+    // Filtre par rating
+    if (filters.rating > 0) {
+      filtered = filtered.filter(product => 
+        product.rating >= filters.rating
+      )
+    }
+
+    // Tri
+    switch (filters.sortBy) {
+      case 'price-low':
+        filtered.sort((a, b) => a.price - b.price)
+        break
+      case 'price-high':
+        filtered.sort((a, b) => b.price - a.price)
+        break
+      case 'rating':
+        filtered.sort((a, b) => b.rating - a.rating)
+        break
+      case 'newest':
+        filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        break
+      default: // popular
+        filtered.sort((a, b) => b.sold_count - a.sold_count)
+    }
+
+    setFilteredProducts(filtered)
+    setCurrentPage(1)
+  }
+
+  // Pagination
+  const indexOfLastProduct = currentPage * productsPerPage
+  const indexOfFirstProduct = indexOfLastProduct - productsPerPage
+  const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct)
+  const totalPages = Math.ceil(filteredProducts.length / productsPerPage)
+
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-7xl mx-auto px-4">
-          <LoadingSpinner size="large" message="Chargement des produits..." />
+      <div className="container" style={{ padding: '40px 20px', textAlign: 'center' }}>
+        <div style={{ fontSize: '18px', color: 'var(--gray)' }}>
+          <i className="fas fa-spinner fa-spin" style={{ marginRight: '10px' }}></i>
+          Chargement des produits...
         </div>
       </div>
-    );
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* En-tête */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Catalogue des Produits
-              </h1>
-              {query && (
-                <p className="text-gray-600 mt-2">
-                  Résultats pour : <span className="font-semibold">"{query}"</span>
-                </p>
-              )}
-              {pagination.total > 0 && (
-                <p className="text-gray-600 mt-1">
-                  {pagination.total} produit(s) trouvé(s)
-                </p>
-              )}
-            </div>
-
-            <div className="mt-4 lg:mt-0 flex items-center space-x-4">
-              {/* Bouton filtres mobile */}
-              {isMobile && (
-                <button
-                  onClick={() => toggleSidebar('filters')}
-                  className="flex items-center px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg>
-                  Filtres
-                </button>
-              )}
-
-              {/* Tri des produits */}
-              <ProductSort
-                sortBy={localFilters.sortBy}
-                sortOrder={localFilters.sortOrder}
-                onChange={(sort) => handleFilterChange(sort)}
-              />
-            </div>
-          </div>
+    <div style={{ background: 'var(--white)', minHeight: '100vh' }}>
+      <div className="container" style={{ padding: '20px 15px' }}>
+        {/* En-tête */}
+        <div style={{ marginBottom: '30px' }}>
+          <h1 style={{ 
+            fontSize: '32px', 
+            fontWeight: 'bold', 
+            marginBottom: '10px',
+            color: 'var(--dark)'
+          }}>
+            📦 Tous les Produits
+          </h1>
+          <p style={{ color: 'var(--gray)', fontSize: '16px' }}>
+            Découvrez {filteredProducts.length} produits disponibles
+          </p>
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar des filtres (Desktop) */}
-          {!isMobile && (
-            <div className="lg:w-64 flex-shrink-0">
-              <ProductFilters
-                filters={localFilters}
-                onChange={handleFilterChange}
-              />
-            </div>
-          )}
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: '250px 1fr', 
+          gap: '30px',
+          alignItems: 'start'
+        }}>
+          {/* Filtres */}
+          <div>
+            <ProductFilters 
+              filters={filters}
+              onFiltersChange={setFilters}
+              productCount={filteredProducts.length}
+            />
+          </div>
 
-          {/* Contenu principal */}
-          <div className="flex-1">
-            {products.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
-                  <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  Aucun produit trouvé
-                </h3>
-                <p className="text-gray-600 max-w-md mx-auto">
-                  {query 
-                    ? 'Essayez de modifier vos critères de recherche ou vos filtres.'
-                    : 'Aucun produit disponible pour le moment.'
-                  }
-                </p>
-                {query && (
-                  <button
-                    onClick={() => window.location.href = '/products'}
-                    className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                  >
-                    Voir tous les produits
-                  </button>
-                )}
+          {/* Produits */}
+          <div>
+            {/* Barre de tri et résultats */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+              padding: '15px',
+              background: '#f8f9fa',
+              borderRadius: '8px'
+            }}>
+              <div style={{ fontSize: '14px', color: 'var(--gray)' }}>
+                {filteredProducts.length} produit{filteredProducts.length > 1 ? 's' : ''} trouvé{filteredProducts.length > 1 ? 's' : ''}
               </div>
-            ) : (
+              
+              <select
+                value={filters.sortBy}
+                onChange={(e) => setFilters(prev => ({ ...prev, sortBy: e.target.value }))}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid var(--gray-lighter)',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }}
+              >
+                <option value="popular">Populaire</option>
+                <option value="newest">Plus récent</option>
+                <option value="price-low">Prix croissant</option>
+                <option value="price-high">Prix décroissant</option>
+                <option value="rating">Meilleures notes</option>
+              </select>
+            </div>
+
+            {/* Grille de produits */}
+            {currentProducts.length > 0 ? (
               <>
-                {/* Grille de produits */}
-                <ProductGrid products={products} />
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                  gap: '20px',
+                  marginBottom: '30px'
+                }}>
+                  {currentProducts.map(product => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
 
                 {/* Pagination */}
-                {pagination.totalPages > 1 && (
-                  <div className="mt-12 flex justify-center">
-                    <Pagination
-                      currentPage={pagination.page}
-                      totalPages={pagination.totalPages}
-                      onPageChange={handlePageChange}
-                    />
-                  </div>
+                {totalPages > 1 && (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                  />
                 )}
               </>
+            ) : (
+              <div style={{ 
+                textAlign: 'center', 
+                padding: '60px 20px',
+                color: 'var(--gray)'
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '20px' }}>🔍</div>
+                <h3 style={{ marginBottom: '10px', fontSize: '18px' }}>
+                  Aucun produit trouvé
+                </h3>
+                <p style={{ fontSize: '14px' }}>
+                  Essayez de modifier vos critères de recherche
+                </p>
+              </div>
             )}
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }
