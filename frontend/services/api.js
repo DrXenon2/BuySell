@@ -132,6 +132,193 @@ const upload = (url, formData, onProgress = null) => {
     },
   });
 };
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.buysell.ci/v1'
+
+class ApiService {
+  constructor() {
+    this.baseURL = API_BASE_URL
+  }
+
+  async request(endpoint, options = {}) {
+    const url = `${this.baseURL}${endpoint}`
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+      ...options,
+    }
+
+    try {
+      const response = await fetch(url, config)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('API Request failed:', error)
+      throw error
+    }
+  }
+
+  // Produits
+  async getProducts(params = {}) {
+    const queryString = new URLSearchParams(params).toString()
+    return this.request(`/products?${queryString}`)
+  }
+
+  async getProduct(id) {
+    return this.request(`/products/${id}`)
+  }
+
+  async getFeaturedProducts() {
+    return this.request('/products/featured')
+  }
+
+  async getOfficialStoreProducts() {
+    return this.request('/products/official-stores')
+  }
+
+  async getDjassaProducts() {
+    return this.request('/products/djassa')
+  }
+
+  // Catégories
+  async getCategories() {
+    return this.request('/categories')
+  }
+
+  async getCategory(slug) {
+    return this.request(`/categories/${slug}`)
+  }
+
+  // Panier
+  async getCart() {
+    return this.request('/cart', {
+      headers: this.getAuthHeaders()
+    })
+  }
+
+  async addToCart(productId, quantity = 1, variantId = null) {
+    return this.request('/cart/items', {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ productId, quantity, variantId })
+    })
+  }
+
+  async updateCartItem(itemId, quantity) {
+    return this.request(`/cart/items/${itemId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ quantity })
+    })
+  }
+
+  async removeCartItem(itemId) {
+    return this.request(`/cart/items/${itemId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders()
+    })
+  }
+
+  // Commandes
+  async createOrder(orderData) {
+    return this.request('/orders', {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(orderData)
+    })
+  }
+
+  async getOrders() {
+    return this.request('/orders', {
+      headers: this.getAuthHeaders()
+    })
+  }
+
+  async getOrder(id) {
+    return this.request(`/orders/${id}`, {
+      headers: this.getAuthHeaders()
+    })
+  }
+
+  // Paiements
+  async initiatePayment(paymentData) {
+    return this.request('/payments/initiate', {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(paymentData)
+    })
+  }
+
+  async confirmPayment(paymentId) {
+    return this.request(`/payments/${paymentId}/confirm`, {
+      method: 'POST',
+      headers: this.getAuthHeaders()
+    })
+  }
+
+  // Authentification
+  async login(credentials) {
+    return this.request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials)
+    })
+  }
+
+  async register(userData) {
+    return this.request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(userData)
+    })
+  }
+
+  async getProfile() {
+    return this.request('/auth/profile', {
+      headers: this.getAuthHeaders()
+    })
+  }
+
+  // Vendeurs
+  async getSellerDashboard() {
+    return this.request('/seller/dashboard', {
+      headers: this.getAuthHeaders()
+    })
+  }
+
+  async createProduct(productData) {
+    return this.request('/seller/products', {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(productData)
+    })
+  }
+
+  // Support
+  async getFAQs() {
+    return this.request('/support/faqs')
+  }
+
+  async createSupportTicket(ticketData) {
+    return this.request('/support/tickets', {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(ticketData)
+    })
+  }
+
+  // Utilitaires
+  getAuthHeaders() {
+    const token = localStorage.getItem('buysell_token')
+    return token ? { 'Authorization': `Bearer ${token}` } : {}
+  }
+}
+
+export const apiService = new ApiService()
 
 export { http, upload };
 export default api;
+
