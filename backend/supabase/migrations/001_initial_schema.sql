@@ -64,6 +64,71 @@ CREATE TABLE user_settings (
   UNIQUE(user_id)
 );
 
+-- Tables principales
+CREATE TABLE categories (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  slug VARCHAR(100) UNIQUE NOT NULL,
+  description TEXT,
+  parent_id UUID REFERENCES categories(id),
+  is_official_store BOOLEAN DEFAULT false,
+  is_djassa BOOLEAN DEFAULT false,
+  image_url TEXT,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE products (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  description TEXT,
+  price DECIMAL(10,2) NOT NULL,
+  original_price DECIMAL(10,2),
+  stock_quantity INTEGER DEFAULT 0,
+  sku VARCHAR(100) UNIQUE,
+  category_id UUID REFERENCES categories(id) NOT NULL,
+  seller_id UUID REFERENCES users(id) NOT NULL,
+  brand VARCHAR(100),
+  condition VARCHAR(20) DEFAULT 'new', -- new, used, refurbished
+  is_featured BOOLEAN DEFAULT false,
+  is_second_hand BOOLEAN DEFAULT false,
+  weight DECIMAL(8,2),
+  dimensions JSONB,
+  specifications JSONB,
+  rating DECIMAL(3,2) DEFAULT 0,
+  review_count INTEGER DEFAULT 0,
+  sold_count INTEGER DEFAULT 0,
+  status VARCHAR(20) DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE product_images (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  image_url TEXT NOT NULL,
+  alt_text VARCHAR(200),
+  sort_order INTEGER DEFAULT 0,
+  is_primary BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE users (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  phone VARCHAR(20),
+  first_name VARCHAR(100),
+  last_name VARCHAR(100),
+  avatar_url TEXT,
+  role VARCHAR(20) DEFAULT 'customer', -- customer, seller, admin
+  is_verified BOOLEAN DEFAULT false,
+  date_of_birth DATE,
+  preferences JSONB DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE seller_profiles (
   id BIGSERIAL PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
@@ -396,3 +461,4 @@ CREATE TABLE audit_logs_archive (
 );
 
 COMMIT;
+
