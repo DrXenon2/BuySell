@@ -6,6 +6,8 @@ import { SearchProvider } from './SearchContext'
 import { ThemeProvider } from './ThemeContext'
 import { UserProvider } from './UserContext'
 import { AppProvider } from './AppContext'
+import { CategoryProvider } from './CategoryContext'
+import { SecondHandProvider } from './SecondHandContext'
 
 export function AllProviders({ children }) {
   return (
@@ -15,9 +17,13 @@ export function AllProviders({ children }) {
           <NotificationProvider>
             <SearchProvider>
               <UserProvider>
-                <CartProvider>
-                  {children}
-                </CartProvider>
+                <CategoryProvider>
+                  <SecondHandProvider>
+                    <CartProvider>
+                      {children}
+                    </CartProvider>
+                  </SecondHandProvider>
+                </CategoryProvider>
               </UserProvider>
             </SearchProvider>
           </NotificationProvider>
@@ -35,3 +41,5 @@ export { useSearch } from './SearchContext'
 export { useTheme } from './ThemeContext'
 export { useUser } from './UserContext'
 export { useApp } from './AppContext'
+export { useCategory } from './CategoryContext'
+export { useSecondHand } from './SecondHandContext'
