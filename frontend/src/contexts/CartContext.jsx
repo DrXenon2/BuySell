@@ -369,7 +369,276 @@ export function CartProvider({ children }) {
     const item = state.items.find(item => item.id === itemId);
     return item ? item.quantity : 0;
   };
+'use client'
+import { createContext, useContext, useReducer, useEffect } from 'react'
+import { useAuth } from './AuthContext'
 
+const CartContext = createContext()
+
+const cartReducer = (state, action) => {
+  switch (action.type) {
+    case 'SET_CART':
+      return {
+        ...state,
+        items: action.payload,
+        loading: false
+      }
+    
+    case 'ADD_ITEM':
+      const existingItem = state.items.find(
+        item => item.product_id === action.payload.product_id && 
+        item.variant_id === action.payload.variant_id
+      )
+      
+      if (existingItem) {
+        return {
+          ...state,
+          items: state.items.map(item =>
+            item.product_id === action.payload.product_id && 
+            item.variant_id === action.payload.variant_id
+              ? { ...item, quantity: item.quantity + action.payload.quantity }
+              : item
+          )
+        }
+      }
+      
+      return {
+        ...state,
+        items: [...state.items, action.payload]
+      }
+    
+    case 'UPDATE_QUANTITY':
+      return {
+        ...state,
+        items: state.items.map(item =>
+          item.id === action.payload.id
+            ? { ...item, quantity: action.payload.quantity }
+            : item
+        )
+      }
+    
+    case 'REMOVE_ITEM':
+      return {
+        ...state,
+        items: state.items.filter(item => item.id !== action.payload.id)
+      }
+    
+    case 'CLEAR_CART':
+      return {
+        ...state,
+        items: []
+      }
+    
+    case 'SET_LOADING':
+      return {
+        ...state,
+        loading: action.payload
+      }
+    
+    case 'SET_ERROR':
+      return {
+        ...state,
+        error: action.payload,
+        loading: false
+      }
+    
+    default:
+      return state
+  }
+}
+
+const initialState = {
+  items: [],
+  loading: false,
+  error: null
+}
+
+export function CartProvider({ children }) {
+  const [state, dispatch] = useReducer(cartReducer, initialState)
+  const { user } = useAuth()
+
+  // Calculer les totaux
+  const itemsCount = state.items.reduce((sum, item) => sum + item.quantity, 0)
+  const totalAmount = state.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+
+  // Charger le panier depuis l'API
+  const loadCart = async () => {
+    if (!user) {
+      // Charger depuis le localStorage si non connecté
+      const localCart = localStorage.getItem('buysell_cart')
+      if (localCart) {
+        dispatch({ type: 'SET_CART', payload: JSON.parse(localCart) })
+      }
+      return
+    }
+    
+    dispatch({ type: 'SET_LOADING', payload: true })
+    try {
+      const response = await fetch('/api/cart', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('buysell_token')}`
+        }
+      })
+      if (response.ok) {
+        const cartData = await response.json()
+        dispatch({ type: 'SET_CART', payload: cartData.items })
+        
+        // Synchroniser avec le localStorage
+        localStorage.setItem('buysell_cart', JSON.stringify(cartData.items))
+      }
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error.message })
+    }
+  }
+
+  // Ajouter au panier
+  const addToCart = async (product, quantity = 1, variantId = null) => {
+    const cartItem = {
+      id: `${product.id}-${variantId || 'default'}`,
+      product_id: product.id,
+      variant_id: variantId,
+      quantity,
+      price: product.price,
+      product: {
+        name: product.name,
+        images: product.images,
+        stock_quantity: product.stock_quantity,
+        condition: product.condition,
+        brand: product.brand,
+        seller: product.seller
+      }
+    }
+
+    if (user) {
+      // Sync avec l'API
+      try {
+        const response = await fetch('/api/cart', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('buysell_token')}`
+          },
+          body: JSON.stringify(cartItem)
+        })
+        
+        if (response.ok) {
+          const result = await response.json()
+          dispatch({ type: 'ADD_ITEM', payload: result.item })
+          localStorage.setItem('buysell_cart', JSON.stringify([...state.items, result.item]))
+        }
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message })
+      }
+    } else {
+      // Stockage local
+      dispatch({ type: 'ADD_ITEM', payload: cartItem })
+      localStorage.setItem('buysell_cart', JSON.stringify([...state.items, cartItem]))
+    }
+  }
+
+  // Mettre à jour la quantité
+  const updateQuantity = async (itemId, quantity) => {
+    if (quantity <= 0) {
+      removeFromCart(itemId)
+      return
+    }
+
+    dispatch({ type: 'UPDATE_QUANTITY', payload: { id: itemId, quantity } })
+
+    if (user) {
+      try {
+        await fetch('/api/cart', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('buysell_token')}`
+          },
+          body: JSON.stringify({ item_id: itemId, quantity })
+        })
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message })
+      }
+    }
+
+    // Mettre à jour le localStorage
+    const updatedItems = state.items.map(item =>
+      item.id === itemId ? { ...item, quantity } : item
+    )
+    localStorage.setItem('buysell_cart', JSON.stringify(updatedItems))
+  }
+
+  // Supprimer du panier
+  const removeFromCart = async (itemId) => {
+    dispatch({ type: 'REMOVE_ITEM', payload: { id: itemId } })
+
+    if (user) {
+      try {
+        await fetch('/api/cart', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('buysell_token')}`
+          },
+          body: JSON.stringify({ item_id: itemId })
+        })
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message })
+      }
+    }
+
+    // Mettre à jour le localStorage
+    const updatedItems = state.items.filter(item => item.id !== itemId)
+    localStorage.setItem('buysell_cart', JSON.stringify(updatedItems))
+  }
+
+  // Vider le panier
+  const clearCart = async () => {
+    dispatch({ type: 'CLEAR_CART' })
+
+    if (user) {
+      try {
+        await fetch('/api/cart', {
+          method: 'DELETE'
+        })
+      } catch (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message })
+      }
+    }
+
+    localStorage.removeItem('buysell_cart')
+  }
+
+  useEffect(() => {
+    loadCart()
+  }, [user])
+
+  const value = {
+    items: state.items,
+    itemsCount,
+    totalAmount,
+    loading: state.loading,
+    error: state.error,
+    addToCart,
+    updateQuantity,
+    removeFromCart,
+    clearCart,
+    loadCart
+  }
+
+  return (
+    <CartContext.Provider value={value}>
+      {children}
+    </CartContext.Provider>
+  )
+}
+
+export function useCart() {
+  const context = useContext(CartContext)
+  if (!context) {
+    throw new Error('useCart must be used within a CartProvider')
+  }
+  return context
+}
   const value = {
     // State
     items: state.items,
@@ -392,3 +661,4 @@ export function CartProvider({ children }) {
     </CartContext.Provider>
   );
 }
+
