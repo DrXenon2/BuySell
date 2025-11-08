@@ -1,130 +1,453 @@
-'use client';
+'use client'
+import { useState } from 'react'
+import Link from 'next/link'
+import Image from 'next/image'
+import { useCart } from '@/contexts/CartContext'
+import { useAuth } from '@/contexts/AuthContext'
 
-import { useState } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useCart } from '../../contexts/CartContext';
-import { useApp } from '../../contexts/AppContext';
+export default function ProductCard({ product }) {
+  const [imageError, setImageError] = useState(false)
+  const [isAddingToCart, setIsAddingToCart] = useState(false)
+  const { addToCart } = useCart()
+  const { isAuthenticated } = useAuth()
 
-export function ProductCard({ product }) {
-  const [imageError, setImageError] = useState(false);
-  const { addItem } = useCart();
-  const { formatPrice, isMobile } = useApp();
+  const {
+    id,
+    name,
+    price,
+    original_price,
+    images,
+    category,
+    brand,
+    condition,
+    stock_quantity,
+    rating,
+    review_count,
+    is_second_hand,
+    seller,
+    sold_count
+  } = product
 
-  const mainImage = product.images?.[0] || '/images/placeholder.jpg';
-  const price = product.salePrice || product.price;
-  const originalPrice = product.salePrice ? product.price : null;
+  const discount = original_price ? Math.round(((original_price - price) / original_price) * 100) : 0
+  const isLowStock = stock_quantity <= 10
+  const stockPercentage = Math.min((sold_count / (sold_count + stock_quantity)) * 100, 100)
 
   const handleAddToCart = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault()
+    e.stopPropagation()
     
-    try {
-      await addItem(product, 1);
-    } catch (error) {
-      console.error('Error adding to cart:', error);
+    if (!isAuthenticated) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('showNotification', {
+          detail: {
+            message: 'Connectez-vous pour ajouter au panier',
+            type: 'warning'
+          }
+        }))
+      }
+      return
     }
-  };
+
+    setIsAddingToCart(true)
+    await addToCart(product, 1)
+    setIsAddingToCart(false)
+  }
+
+  const handleQuickView = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('showQuickView', {
+        detail: { product }
+      }))
+    }
+  }
+
+  const handleAddToWishlist = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (!isAuthenticated) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('showNotification', {
+          detail: {
+            message: 'Connectez-vous pour ajouter aux favoris',
+            type: 'warning'
+          }
+        }))
+      }
+      return
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('addToWishlist', {
+        detail: { product }
+      }))
+    }
+  }
 
   return (
-    <div className="group bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 overflow-hidden">
-      <Link href={`/products/${product.id}`}>
-        <div className="aspect-w-1 aspect-h-1 bg-gray-200 overflow-hidden">
-          <Image
-            src={imageError ? '/images/placeholder.jpg' : mainImage}
-            alt={product.name}
-            width={300}
-            height={300}
-            className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-200"
+    <div style={{
+      background: 'var(--white)',
+      borderRadius: '12px',
+      overflow: 'hidden',
+      boxShadow: 'var(--shadow)',
+      transition: 'all 0.3s ease',
+      position: 'relative'
+    }}
+    className="product-card"
+    >
+      <Link href={`/products/${id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+        {/* Badges */}
+        <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 2, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          {is_second_hand && (
+            <span style={{
+              background: 'var(--green)',
+              color: 'var(--white)',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '10px',
+              fontWeight: 'bold'
+            }}>
+              🔄 DJASSA
+            </span>
+          )}
+          {discount > 0 && (
+            <span style={{
+              background: 'var(--red)',
+              color: 'var(--white)',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '10px',
+              fontWeight: 'bold'
+            }}>
+              -{discount}%
+            </span>
+          )}
+          {isLowStock && stock_quantity > 0 && (
+            <span style={{
+              background: 'var(--orange)',
+              color: 'var(--white)',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '10px',
+              fontWeight: 'bold'
+            }}>
+              Stock faible
+            </span>
+          )}
+          {stock_quantity === 0 && (
+            <span style={{
+              background: 'var(--gray)',
+              color: 'var(--white)',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '10px',
+              fontWeight: 'bold'
+            }}>
+              Rupture
+            </span>
+          )}
+        </div>
+
+        {/* Actions rapides */}
+        <div style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          zIndex: 2,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '5px',
+          opacity: 0,
+          transition: 'opacity 0.3s ease'
+        }}
+        className="product-actions"
+        >
+          <button
+            onClick={handleAddToWishlist}
+            style={{
+              width: '32px',
+              height: '32px',
+              background: 'var(--white)',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: 'var(--shadow)',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '14px',
+              color: 'var(--gray)',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseOver={(e) => {
+              e.target.style.background = 'var(--red)'
+              e.target.style.color = 'var(--white)'
+            }}
+            onMouseOut={(e) => {
+              e.target.style.background = 'var(--white)'
+              e.target.style.color = 'var(--gray)'
+            }}
+          >
+            <i className="far fa-heart"></i>
+          </button>
+          <button
+            onClick={handleQuickView}
+            style={{
+              width: '32px',
+              height: '32px',
+              background: 'var(--white)',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: 'var(--shadow)',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '14px',
+              color: 'var(--gray)',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseOver={(e) => {
+              e.target.style.background = 'var(--blue)'
+              e.target.style.color = 'var(--white)'
+            }}
+            onMouseOut={(e) => {
+              e.target.style.background = 'var(--white)'
+              e.target.style.color = 'var(--gray)'
+            }}
+          >
+            <i className="far fa-eye"></i>
+          </button>
+        </div>
+
+        {/* Image du produit */}
+        <div style={{
+          position: 'relative',
+          width: '100%',
+          height: '200px',
+          background: '#F8F8F8',
+          overflow: 'hidden'
+        }}>
+          <img
+            src={imageError ? '/images/placeholder-product.jpg' : (images?.[0] || '/images/placeholder-product.jpg')}
+            alt={name}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transition: 'transform 0.3s ease'
+            }}
+            className="product-image"
             onError={() => setImageError(true)}
           />
           
-          {/* Badges */}
-          <div className="absolute top-2 left-2 flex flex-col space-y-1">
-            {product.isNew && (
-              <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded">
-                Nouveau
-              </span>
-            )}
-            {product.salePrice && (
-              <span className="bg-red-500 text-white text-xs px-2 py-1 rounded">
-                Promo
-              </span>
-            )}
-            {product.stockQuantity === 0 && (
-              <span className="bg-gray-500 text-white text-xs px-2 py-1 rounded">
-                Rupture
+          {/* Overlay au hover */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.02)',
+            transition: 'background 0.3s ease'
+          }}
+          className="product-overlay"
+          />
+        </div>
+
+        {/* Informations du produit */}
+        <div style={{ padding: '15px' }}>
+          {/* Catégorie et marque */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+            <span style={{
+              fontSize: '11px',
+              color: 'var(--gray)',
+              textTransform: 'uppercase',
+              fontWeight: '500'
+            }}>
+              {category?.name}
+            </span>
+            {brand && (
+              <span style={{
+                fontSize: '11px',
+                color: 'var(--blue)',
+                fontWeight: '500'
+              }}>
+                {brand}
               </span>
             )}
           </div>
+
+          {/* Nom du produit */}
+          <h3 style={{
+            fontSize: '14px',
+            fontWeight: '500',
+            lineHeight: 1.3,
+            marginBottom: '8px',
+            height: '36px',
+            overflow: 'hidden',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical'
+          }}>
+            {name}
+          </h3>
+
+          {/* Vendeur */}
+          {seller && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--gray)' }}>Par</span>
+              <span style={{ fontSize: '11px', fontWeight: '500', color: 'var(--dark)' }}>
+                {seller.verified && (
+                  <i className="fas fa-check-circle" style={{ color: 'var(--blue)', marginRight: '3px' }}></i>
+                )}
+                {seller.store_name || seller.name}
+              </span>
+            </div>
+          )}
+
+          {/* Évaluation */}
+          {rating > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', color: 'var(--yellow)' }}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <span key={star} style={{ fontSize: '10px' }}>
+                    {star <= Math.floor(rating) ? '★' : star === Math.ceil(rating) && rating % 1 !== 0 ? '½' : '☆'}
+                  </span>
+                ))}
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--gray)' }}>
+                ({review_count?.toLocaleString('fr-FR')})
+              </span>
+            </div>
+          )}
+
+          {/* Prix */}
+          <div style={{ marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+              <span style={{
+                fontSize: '16px',
+                fontWeight: 'bold',
+                color: 'var(--orange)'
+              }}>
+                {price?.toLocaleString('fr-FR')} FCFA
+              </span>
+              {original_price && original_price > price && (
+                <span style={{
+                  fontSize: '12px',
+                  color: 'var(--gray)',
+                  textDecoration: 'line-through'
+                }}>
+                  {original_price.toLocaleString('fr-FR')} FCFA
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Stock et ventes */}
+          {(stock_quantity > 0 || sold_count > 0) && (
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--gray)', marginBottom: '4px' }}>
+                <span>{sold_count?.toLocaleString('fr-FR')} vendus</span>
+                {stock_quantity > 0 && <span>{stock_quantity} restants</span>}
+              </div>
+              {isLowStock && stock_quantity > 0 && (
+                <div style={{
+                  width: '100%',
+                  background: '#F0F0F0',
+                  height: '4px',
+                  borderRadius: '2px',
+                  overflow: 'hidden'
+                }}>
+                  <div 
+                    style={{
+                      height: '100%',
+                      background: 'var(--orange)',
+                      borderRadius: '2px',
+                      transition: 'width 0.3s ease'
+                    }}
+                    style={{ width: `${stockPercentage}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Bouton d'action */}
+          <button
+            onClick={handleAddToCart}
+            disabled={stock_quantity === 0 || isAddingToCart}
+            style={{
+              width: '100%',
+              background: stock_quantity === 0 ? 'var(--gray-light)' : 
+                         isAddingToCart ? 'var(--green)' : 'var(--orange)',
+              color: 'var(--white)',
+              border: 'none',
+              padding: '10px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              cursor: stock_quantity === 0 ? 'not-allowed' : 'pointer',
+              transition: 'all 0.3s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
+            }}
+            onMouseOver={(e) => {
+              if (stock_quantity > 0 && !isAddingToCart) {
+                e.target.style.background = 'var(--orange-dark)'
+                e.target.style.transform = 'translateY(-1px)'
+              }
+            }}
+            onMouseOut={(e) => {
+              if (stock_quantity > 0 && !isAddingToCart) {
+                e.target.style.background = 'var(--orange)'
+                e.target.style.transform = 'translateY(0)'
+              }
+            }}
+          >
+            {stock_quantity === 0 ? (
+              <>
+                <i className="fas fa-times"></i>
+                Rupture de stock
+              </>
+            ) : isAddingToCart ? (
+              <>
+                <i className="fas fa-check"></i>
+                Ajouté !
+              </>
+            ) : (
+              <>
+                <i className="fas fa-cart-plus"></i>
+                Ajouter au panier
+              </>
+            )}
+          </button>
         </div>
       </Link>
 
-      <div className="p-4">
-        {/* Catégorie */}
-        {product.category && (
-          <Link 
-            href={`/products/category/${product.category.slug}`}
-            className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {product.category.name}
-          </Link>
-        )}
-
-        {/* Nom du produit */}
-        <Link href={`/products/${product.id}`}>
-          <h3 className="font-medium text-gray-900 mt-1 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
-            {product.name}
-          </h3>
-        </Link>
-
-        {/* Note */}
-        {product.rating > 0 && (
-          <div className="flex items-center mb-2">
-            <div className="flex text-yellow-400">
-              {[...Array(5)].map((_, i) => (
-                <svg
-                  key={i}
-                  className={`w-4 h-4 ${i < Math.floor(product.rating) ? 'fill-current' : 'text-gray-300'}`}
-                  viewBox="0 0 20 20"
-                >
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
-              ))}
-            </div>
-            <span className="text-xs text-gray-500 ml-1">
-              ({product.reviewCount || 0})
-            </span>
-          </div>
-        )}
-
-        {/* Prix */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center space-x-2">
-            <span className="text-lg font-semibold text-gray-900">
-              {formatPrice(price)}
-            </span>
-            {originalPrice && (
-              <span className="text-sm text-gray-500 line-through">
-                {formatPrice(originalPrice)}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Bouton d'ajout au panier */}
-        <button
-          onClick={handleAddToCart}
-          disabled={product.stockQuantity === 0}
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          <span>{product.stockQuantity === 0 ? 'Rupture' : 'Ajouter'}</span>
-        </button>
-      </div>
+      <style jsx>{`
+        .product-card:hover {
+          box-shadow: var(--shadow-hover);
+          transform: translateY(-4px);
+        }
+        
+        .product-card:hover .product-actions {
+          opacity: 1;
+        }
+        
+        .product-card:hover .product-image {
+          transform: scale(1.05);
+        }
+        
+        .product-card:hover .product-overlay {
+          background: rgba(0,0,0,0.05);
+        }
+      `}</style>
     </div>
-  );
+  )
 }
