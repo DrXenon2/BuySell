@@ -359,7 +359,230 @@ export function AuthProvider({ children }) {
     user: state.user,
     isLoading: state.isLoading,
     error: state.error,
+'use client'
+import { createContext, useContext, useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
+const AuthContext = createContext()
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+
+  useEffect(() => {
+    checkAuth()
+  }, [])
+
+  const checkAuth = async () => {
+    try {
+      const token = localStorage.getItem('buysell_token')
+      if (!token) {
+        setLoading(false)
+        return
+      }
+
+      // Vérifier la validité du token
+      const response = await fetch('/api/auth/verify', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const userData = await response.json()
+        setUser(userData.user)
+      } else {
+        // Token invalide, tentative de refresh
+        await refreshToken()
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error)
+      logout()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const login = async (email, password) => {
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'login',
+          email,
+          password
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        const { user, tokens } = data.data
+        
+        // Stocker les tokens
+        localStorage.setItem('buysell_token', tokens.accessToken)
+        localStorage.setItem('buysell_refresh_token', tokens.refreshToken)
+        
+        setUser(user)
+        
+        // Redirection basée sur le rôle
+        const redirectPath = user.role === 'admin' ? '/admin' : 
+                           user.role === 'seller' ? '/dashboard/seller' : '/dashboard'
+        router.push(redirectPath)
+        
+        return { success: true }
+      } else {
+        return { success: false, error: data.error }
+      }
+    } catch (error) {
+      return { success: false, error: 'Erreur de connexion' }
+    }
+  }
+
+  const register = async (userData) => {
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'register',
+          ...userData
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        const { user, tokens } = data.data
+        
+        localStorage.setItem('buysell_token', tokens.accessToken)
+        localStorage.setItem('buysell_refresh_token', tokens.refreshToken)
+        
+        setUser(user)
+        router.push('/dashboard')
+        
+        return { success: true }
+      } else {
+        return { success: false, error: data.error }
+      }
+    } catch (error) {
+      return { success: false, error: 'Erreur d\'inscription' }
+    }
+  }
+
+  const logout = async () => {
+    try {
+      await fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'logout'
+        })
+      })
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      localStorage.removeItem('buysell_token')
+      localStorage.removeItem('buysell_refresh_token')
+      setUser(null)
+      router.push('/')
+    }
+  }
+
+  const refreshToken = async () => {
+    try {
+      const refreshToken = localStorage.getItem('buysell_refresh_token')
+      if (!refreshToken) {
+        logout()
+        return
+      }
+
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'refresh',
+          refreshToken
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        const { accessToken, refreshToken: newRefreshToken } = data.data
+        localStorage.setItem('buysell_token', accessToken)
+        localStorage.setItem('buysell_refresh_token', newRefreshToken)
+        await checkAuth() // Recharger les données utilisateur
+      } else {
+        logout()
+      }
+    } catch (error) {
+      logout()
+    }
+  }
+
+  const updateProfile = async (profileData) => {
+    try {
+      const token = localStorage.getItem('buysell_token')
+      const response = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(profileData)
+      })
+
+      if (response.ok) {
+        const updatedUser = await response.json()
+        setUser(updatedUser)
+        return { success: true }
+      } else {
+        return { success: false, error: 'Erreur de mise à jour' }
+      }
+    } catch (error) {
+      return { success: false, error: 'Erreur de connexion' }
+    }
+  }
+
+  const value = {
+    user,
+    loading,
+    login,
+    register,
+    logout,
+    updateProfile,
+    refreshToken,
+    isAuthenticated: !!user,
+    isAdmin: user?.role === 'admin',
+    isSeller: user?.role === 'seller',
+    isCustomer: user?.role === 'customer' || !user?.role
+  }
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
+}
     // Actions
     signIn,
     signUp,
@@ -381,3 +604,4 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   );
 }
+
